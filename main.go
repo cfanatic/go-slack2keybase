@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cfanatic/slack2keybase/bridge"
+	"github.com/cfanatic/go-slack2keybase/bridge"
 )
 
 const oauth = "<YOUR_BOT_TOKEN>"
