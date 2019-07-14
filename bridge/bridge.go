@@ -2,22 +2,20 @@ package bridge
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"strings"
 
 	"github.com/nlopes/slack"
 )
 
 type Bridge struct {
-	trace *(log.Logger)
+	trace func(...interface{})
 	api   *(slack.Client)
 	rtm   *(slack.RTM)
 }
 
-func New(token string) (bridge Bridge) {
-	bridge.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
-	bridge.api = slack.New(token, slack.OptionDebug(false), slack.OptionLog(bridge.trace))
+func New(token string, trace func(...interface{})) (bridge Bridge) {
+	bridge.trace = trace
+	bridge.api = slack.New(token, slack.OptionDebug(false))
 	bridge.rtm = bridge.api.NewRTM()
 	return
 }
@@ -28,15 +26,17 @@ func (bridge *Bridge) Start() {
 		for msg := range bridge.rtm.IncomingEvents {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
-				bridge.trace.Print("INFO: Accepting messages")
+				bridge.trace("INFO: Accepting messages")
 			case *slack.MessageEvent:
 				user, _ := bridge.api.GetUserInfo(ev.User)
 				channel, _ := bridge.api.GetChannelInfo(ev.Channel)
-				bridge.trace.Print("#", channel.Name, " [", strings.Title(user.Name), "] ", ev.Text)
+				str := fmt.Sprintf("#%s [%s] %s", channel.Name, strings.Title(user.Name), ev.Text)
+				bridge.trace(str)
 			case *slack.RTMError:
-				bridge.trace.Printf("ERROR: %s\n", ev.Error())
+				str := fmt.Sprintf("ERROR: %s\n", ev.Error())
+				bridge.trace(str)
 			case *slack.InvalidAuthEvent:
-				bridge.trace.Print("ERROR: Invalid credentials")
+				bridge.trace("ERROR: Invalid credentials")
 				break
 			}
 		}
@@ -46,5 +46,5 @@ func (bridge *Bridge) Start() {
 func (bridge *Bridge) Stop() {
 	bridge.rtm.Disconnect()
 	fmt.Println()
-	bridge.trace.Println("INFO: Closing connection")
+	bridge.trace("INFO: Closing connection")
 }

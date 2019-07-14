@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -8,10 +9,12 @@ import (
 	"github.com/cfanatic/go-slack2keybase/bridge"
 )
 
-const oauth = "<YOUR_BOT_TOKEN>"
+const oauth = "<INSERT_BOT_TOKEN>"
+
+var trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
 
 func main() {
-	bridge := bridge.New(oauth)
+	bridge := bridge.New(oauth, trace.Print)
 	bridge.Start()
 
 	c := make(chan os.Signal)
