@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,10 +10,8 @@ import (
 
 const oauth = "<INSERT_BOT_TOKEN>"
 
-var trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
-
 func main() {
-	bridge := bridge.New(oauth, trace.Print)
+	bridge := bridge.New(oauth, true)
 	bridge.Start()
 
 	c := make(chan os.Signal)
