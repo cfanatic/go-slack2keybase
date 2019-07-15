@@ -16,12 +16,12 @@ type Bridge struct {
 	rtm   *(slack.RTM)
 }
 
-func New(token string, debug bool) (bridge Bridge) {
-	bridge.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
-	bridge.api = slack.New(token, slack.OptionDebug(false))
-	bridge.rtm = bridge.api.NewRTM()
+func New(token string, debug bool) (b Bridge) {
+	b.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
+	b.api = slack.New(token, slack.OptionDebug(false))
+	b.rtm = b.api.NewRTM()
 	if !debug {
-		bridge.trace.SetOutput(ioutil.Discard)
+		b.trace.SetOutput(ioutil.Discard)
 	}
 	return
 }
