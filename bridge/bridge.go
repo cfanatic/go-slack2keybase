@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/nlopes/slack"
@@ -35,9 +36,11 @@ func (b *Bridge) Start() {
 			case *slack.ConnectedEvent:
 				b.trace.Print("INFO: Accepting messages")
 			case *slack.MessageEvent:
-				user, _ := b.api.GetUserInfo(ev.User)
-				channel, _ := b.api.GetChannelInfo(ev.Channel)
-				str := fmt.Sprintf("#%s [%s] %s", channel.Name, strings.Title(user.Name), ev.Text)
+				uInfo, _ := b.api.GetUserInfo(ev.User)
+				cInfo, _ := b.api.GetChannelInfo(ev.Channel)
+				channel, name, text := cInfo.Name, strings.Title(uInfo.Name), ev.Text
+				b.sendMessage(channel, name, text)
+				str := fmt.Sprintf("#%s [%s] %s", channel, name, text)
 				b.trace.Print(str)
 			case *slack.RTMError:
 				str := fmt.Sprintf("ERROR: %s\n", ev.Error())
@@ -54,4 +57,13 @@ func (b *Bridge) Stop() {
 	b.rtm.Disconnect()
 	fmt.Println()
 	b.trace.Print("INFO: Closing connection")
+}
+
+func (b *Bridge) sendMessage(channel, name, text string) {
+	message := "[" + name + "]" + "  " + text
+	cmd := "keybase"
+	args := []string{"chat", "send", "asrg", message}
+	if err := exec.Command(cmd, args...).Run(); err != nil {
+		b.trace.Print(err)
+	}
 }
