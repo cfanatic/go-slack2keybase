@@ -20,31 +20,31 @@ func New(token string, trace func(...interface{})) (bridge Bridge) {
 	return
 }
 
-func (bridge *Bridge) Start() {
-	go bridge.rtm.ManageConnection()
+func (b *Bridge) Start() {
+	go b.rtm.ManageConnection()
 	go func() {
-		for msg := range bridge.rtm.IncomingEvents {
+		for msg := range b.rtm.IncomingEvents {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
-				bridge.trace("INFO: Accepting messages")
+				b.trace("INFO: Accepting messages")
 			case *slack.MessageEvent:
-				user, _ := bridge.api.GetUserInfo(ev.User)
-				channel, _ := bridge.api.GetChannelInfo(ev.Channel)
+				user, _ := b.api.GetUserInfo(ev.User)
+				channel, _ := b.api.GetChannelInfo(ev.Channel)
 				str := fmt.Sprintf("#%s [%s] %s", channel.Name, strings.Title(user.Name), ev.Text)
-				bridge.trace(str)
+				b.trace(str)
 			case *slack.RTMError:
 				str := fmt.Sprintf("ERROR: %s\n", ev.Error())
-				bridge.trace(str)
+				b.trace(str)
 			case *slack.InvalidAuthEvent:
-				bridge.trace("ERROR: Invalid credentials")
+				b.trace("ERROR: Invalid credentials")
 				break
 			}
 		}
 	}()
 }
 
-func (bridge *Bridge) Stop() {
-	bridge.rtm.Disconnect()
+func (b *Bridge) Stop() {
+	b.rtm.Disconnect()
 	fmt.Println()
-	bridge.trace("INFO: Closing connection")
+	b.trace("INFO: Closing connection")
 }
