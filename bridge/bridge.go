@@ -16,14 +16,15 @@ type Bridge struct {
 	rtm   *(slack.RTM)
 }
 
-func New(token string, debug bool) (b Bridge) {
+func New(token string, debug bool) Bridge {
+	b := Bridge{}
 	b.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
 	b.api = slack.New(token, slack.OptionDebug(false))
 	b.rtm = b.api.NewRTM()
 	if !debug {
 		b.trace.SetOutput(ioutil.Discard)
 	}
-	return
+	return b
 }
 
 func (b *Bridge) Start() {
