@@ -15,6 +15,11 @@ type Bridge struct {
 	trace *(log.Logger)
 	api   *(slack.Client)
 	rtm   *(slack.RTM)
+	chat  Chat
+}
+
+type Chat struct {
+	channels []string
 }
 
 func New(token string, debug bool) Bridge {
@@ -35,6 +40,7 @@ func (b *Bridge) Start() {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
 				b.trace.Print("INFO: Connection established")
+				b.getChannels()
 			case *slack.MessageEvent:
 				uInfo, _ := b.api.GetUserInfo(ev.User)
 				cInfo, _ := b.api.GetChannelInfo(ev.Channel)
@@ -66,5 +72,14 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 		fmt.Sprintf("--channel=%s", channel)}
 	if err := exec.Command(cmd, args...).Run(); err != nil {
 		b.trace.Print(err)
+	}
+}
+
+func (b *Bridge) getChannels() {
+	if list, err := b.api.GetChannels(true); err == nil {
+		b.chat.channels = make([]string, 0, len(list))
+		for _, channel := range list {
+			b.chat.channels = append(b.chat.channels, channel.Name)
+		}
 	}
 }
