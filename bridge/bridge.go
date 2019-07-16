@@ -34,7 +34,7 @@ func (b *Bridge) Start() {
 		for msg := range b.rtm.IncomingEvents {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
-				b.trace.Print("INFO: Accepting messages")
+				b.trace.Print("INFO: Connection established")
 			case *slack.MessageEvent:
 				uInfo, _ := b.api.GetUserInfo(ev.User)
 				cInfo, _ := b.api.GetChannelInfo(ev.Channel)
@@ -60,9 +60,10 @@ func (b *Bridge) Stop() {
 }
 
 func (b *Bridge) sendMessage(channel, name, text string) {
-	message := "[" + name + "]" + "  " + text
 	cmd := "keybase"
-	args := []string{"chat", "send", "asrg", message}
+	args := []string{"chat", "send", "asrg",
+		fmt.Sprintf("[%s]  %s", name, text),
+		fmt.Sprintf("--channel=%s", channel)}
 	if err := exec.Command(cmd, args...).Run(); err != nil {
 		b.trace.Print(err)
 	}
