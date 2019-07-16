@@ -12,21 +12,24 @@ import (
 )
 
 type Bridge struct {
-	trace *(log.Logger)
-	api   *(slack.Client)
-	rtm   *(slack.RTM)
-	chat  Chat
+	trace    *(log.Logger)
+	api_user *(slack.Client)
+	api_bot  *(slack.Client)
+	rtm      *(slack.RTM)
+	chat     Chat
 }
 
 type Chat struct {
+	ids      map[string]string
 	channels []string
 }
 
-func New(token string, debug bool) Bridge {
+func New(user_token, bot_token string, debug bool) Bridge {
 	b := Bridge{}
 	b.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
-	b.api = slack.New(token, slack.OptionDebug(false))
-	b.rtm = b.api.NewRTM()
+	b.api_user = slack.New(user_token, slack.OptionDebug(false))
+	b.api_bot = slack.New(bot_token, slack.OptionDebug(false))
+	b.rtm = b.api_bot.NewRTM()
 	if !debug {
 		b.trace.SetOutput(ioutil.Discard)
 	}
@@ -41,16 +44,15 @@ func (b *Bridge) Start() {
 			case *slack.ConnectedEvent:
 				b.trace.Print("INFO: Connection established")
 				b.getChannels()
+				b.getMessages()
 			case *slack.MessageEvent:
-				uInfo, _ := b.api.GetUserInfo(ev.User)
-				cInfo, _ := b.api.GetChannelInfo(ev.Channel)
+				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
+				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
 				channel, name, text := cInfo.Name, strings.Title(uInfo.Name), ev.Text
 				b.sendMessage(channel, name, text)
-				str := fmt.Sprintf("#%s [%s] %s", channel, name, text)
-				b.trace.Print(str)
+				b.trace.Printf("#%s [%s] %s\n", channel, name, text)
 			case *slack.RTMError:
-				str := fmt.Sprintf("ERROR: %s\n", ev.Error())
-				b.trace.Print(str)
+				b.trace.Printf("ERROR: %s\n", ev.Error())
 			case *slack.InvalidAuthEvent:
 				b.trace.Print("ERROR: Invalid credentials")
 				break
@@ -67,7 +69,10 @@ func (b *Bridge) Stop() {
 
 func (b *Bridge) sendMessage(channel, name, text string) {
 	cmd := "keybase"
-	args := []string{"chat", "send", "asrg",
+	args := []string{
+		"chat",
+		"send",
+		"asrg",
 		fmt.Sprintf("[%s]  %s", name, text),
 		fmt.Sprintf("--channel=%s", channel)}
 	if err := exec.Command(cmd, args...).Run(); err != nil {
@@ -76,10 +81,24 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 }
 
 func (b *Bridge) getChannels() {
-	if list, err := b.api.GetChannels(true); err == nil {
+	if list, err := b.api_bot.GetChannels(true); err == nil {
+		b.chat.ids = make(map[string]string)
 		b.chat.channels = make([]string, 0, len(list))
 		for _, channel := range list {
 			b.chat.channels = append(b.chat.channels, channel.Name)
+			b.chat.ids[channel.Name] = channel.ID
 		}
+	}
+}
+
+func (b *Bridge) getMessages() {
+	param := slack.NewHistoryParameters()
+	param.Count = 10
+	if hist, err := b.api_user.GetChannelHistory(b.chat.ids["general"], param); err == nil {
+		for _, msg := range hist.Messages {
+			fmt.Println(msg.Text)
+		}
+	} else {
+		b.trace.Printf("ERROR: %s\n", err)
 	}
 }
