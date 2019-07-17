@@ -81,6 +81,10 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 	}
 }
 
+func (b *Bridge) sendMessages(channel, name, text string) {
+	// TODO: Implement method which sends a bunch of messages
+}
+
 func (b *Bridge) getChannels() {
 	if list, err := b.api_bot.GetChannels(true); err == nil {
 		b.chat.ids = make(map[string]string)
