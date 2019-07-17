@@ -20,8 +20,9 @@ type Bridge struct {
 }
 
 type Chat struct {
-	ids  map[string]string
-	hist map[string][]string
+	chans map[string]string
+	users map[string]string
+	hist  map[string][]string
 }
 
 func New(user_token, bot_token string, debug bool) Bridge {
@@ -30,6 +31,9 @@ func New(user_token, bot_token string, debug bool) Bridge {
 	b.api_user = slack.New(user_token, slack.OptionDebug(false))
 	b.api_bot = slack.New(bot_token, slack.OptionDebug(false))
 	b.rtm = b.api_bot.NewRTM()
+	b.chat.chans = make(map[string]string)
+	b.chat.users = make(map[string]string)
+	b.chat.hist = make(map[string][]string)
 	if !debug {
 		b.trace.SetOutput(ioutil.Discard)
 	}
@@ -87,9 +91,8 @@ func (b *Bridge) sendMessages(channel, name, text string) {
 
 func (b *Bridge) getChannels() {
 	if list, err := b.api_bot.GetChannels(true); err == nil {
-		b.chat.ids = make(map[string]string)
 		for _, channel := range list {
-			b.chat.ids[channel.Name] = channel.ID
+			b.chat.chans[channel.Name] = channel.ID
 		}
 	} else {
 		b.trace.Printf("ERROR: %s\n", err)
@@ -99,11 +102,15 @@ func (b *Bridge) getChannels() {
 func (b *Bridge) getMessages() {
 	param := slack.NewHistoryParameters()
 	param.Count = 10
-	b.chat.hist = make(map[string][]string)
-	for key, _ := range b.chat.ids {
-		if hist, err := b.api_user.GetChannelHistory(b.chat.ids[key], param); err == nil {
+	for key, _ := range b.chat.chans {
+		if hist, err := b.api_user.GetChannelHistory(b.chat.chans[key], param); err == nil {
 			for _, msg := range hist.Messages {
-				b.chat.hist[key] = append(b.chat.hist[key], msg.Text)
+				if _, ok := b.chat.users[msg.User]; !ok {
+					user, _ := b.api_bot.GetUserInfo(msg.User)
+					b.chat.users[msg.User] = user.Name
+				}
+				text := fmt.Sprintf("[%s] %s\n", b.chat.users[msg.User], msg.Text)
+				b.chat.hist[key] = append(b.chat.hist[key], text)
 			}
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
