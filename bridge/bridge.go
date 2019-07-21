@@ -118,8 +118,8 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	}
 }
 
-// getMessages creates a chat history based on all public channels in the Slack workspace.
-// The maximum number of chat messages is set to 10.
+// getMessages creates a chat history based on all channels in the Slack workspace.
+// The maximum number of chat messages per channel is set to 10.
 func (b *Bridge) getMessages() {
 	param := slack.NewHistoryParameters()
 	param.Count = 10
