@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/nlopes/slack"
@@ -85,8 +86,28 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 	}
 }
 
-func (b *Bridge) sendMessages(channel, name, text string) {
-	// TODO: Implement method which sends a bunch of messages
+func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
+	send := func(channel, value string) {
+		re := regexp.MustCompile("\\[(.*?)\\]")
+		uInfo := re.FindAllStringSubmatch(value, 1)[0][1]
+		tInfo := re.FindString(value)
+		name, text := strings.Title(uInfo), strings.TrimSpace(strings.Split(value, tInfo)[1])
+		b.sendMessage(channel, name, text)
+	}
+	if len(arg) > 0 {
+		channel := arg[0]
+		if _, ok := hist[channel]; ok == true {
+			for _, value := range hist[channel] {
+				defer send(channel, value)
+			}
+		}
+	} else {
+		for channel := range hist {
+			for _, value := range hist[channel] {
+				defer send(channel, value)
+			}
+		}
+	}
 }
 
 func (b *Bridge) getChannels() {
