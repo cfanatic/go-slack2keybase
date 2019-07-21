@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 
 	"github.com/nlopes/slack"
@@ -88,10 +87,8 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 
 func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	send := func(channel, value string) {
-		re := regexp.MustCompile("\\[(.*?)\\]")
-		uInfo := re.FindAllStringSubmatch(value, 1)[0][1]
-		tInfo := re.FindString(value)
-		name, text := strings.Title(uInfo), strings.TrimSpace(strings.Split(value, tInfo)[1])
+		hist := strings.Split(value, ";")
+		name, text := strings.Title(hist[0]), strings.TrimSpace(hist[1])
 		b.sendMessage(channel, name, text)
 	}
 	if len(arg) > 0 {
@@ -130,7 +127,7 @@ func (b *Bridge) getMessages() {
 					user, _ := b.api_bot.GetUserInfo(msg.User)
 					b.chat.users[msg.User] = user.Name
 				}
-				text := fmt.Sprintf("[%s] %s\n", b.chat.users[msg.User], msg.Text)
+				text := fmt.Sprintf("%s;%s\n", b.chat.users[msg.User], msg.Text)
 				b.chat.hist[key] = append(b.chat.hist[key], text)
 			}
 		} else {
