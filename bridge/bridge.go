@@ -11,22 +11,22 @@ import (
 	"github.com/nlopes/slack"
 )
 
-type Bridge struct {
+type bridge struct {
 	trace    *(log.Logger)
 	api_user *(slack.Client)
 	api_bot  *(slack.Client)
 	rtm      *(slack.RTM)
-	chat     Chat
+	chat     chat
 }
 
-type Chat struct {
+type chat struct {
 	chans map[string]string
 	users map[string]string
 	hist  map[string][]string
 }
 
-func New(user_token, bot_token string, debug bool) Bridge {
-	b := Bridge{}
+func New(user_token, bot_token string, debug bool) bridge {
+	b := bridge{}
 	b.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
 	b.api_user = slack.New(user_token, slack.OptionDebug(false))
 	b.api_bot = slack.New(bot_token, slack.OptionDebug(false))
@@ -40,7 +40,7 @@ func New(user_token, bot_token string, debug bool) Bridge {
 	return b
 }
 
-func (b *Bridge) Start() {
+func (b *bridge) Start() {
 	go b.rtm.ManageConnection()
 	go func() {
 		for msg := range b.rtm.IncomingEvents {
@@ -64,13 +64,13 @@ func (b *Bridge) Start() {
 	}()
 }
 
-func (b *Bridge) Stop() {
+func (b *bridge) Stop() {
 	b.rtm.Disconnect()
 	fmt.Println()
 	b.trace.Print("INFO: Closing connection")
 }
 
-func (b *Bridge) sendMessage(channel, name, text string) {
+func (b *bridge) sendMessage(channel, name, text string) {
 	cmd := "keybase"
 	args := []string{
 		"chat",
@@ -85,7 +85,7 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 	}
 }
 
-func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
+func (b *bridge) sendMessages(hist map[string][]string, arg ...string) {
 	send := func(channel, value string) {
 		hist := strings.Split(value, ";")
 		name, text := strings.Title(hist[0]), strings.TrimSpace(hist[1])
@@ -107,7 +107,7 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	}
 }
 
-func (b *Bridge) getChannels() {
+func (b *bridge) getChannels() {
 	if list, err := b.api_bot.GetChannels(true); err == nil {
 		for _, channel := range list {
 			b.chat.chans[channel.Name] = channel.ID
@@ -117,7 +117,7 @@ func (b *Bridge) getChannels() {
 	}
 }
 
-func (b *Bridge) getMessages() {
+func (b *bridge) getMessages() {
 	param := slack.NewHistoryParameters()
 	param.Count = 10
 	for key, _ := range b.chat.chans {
