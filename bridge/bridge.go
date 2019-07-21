@@ -118,18 +118,6 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	}
 }
 
-// getChannels creates a map of channels that are available in the Slack workspace.
-// The channel ID is saved over the channel name.
-func (b *Bridge) getChannels() {
-	if list, err := b.api_bot.GetChannels(true); err == nil {
-		for _, channel := range list {
-			b.chat.chans[channel.Name] = channel.ID
-		}
-	} else {
-		b.trace.Printf("ERROR: %s\n", err)
-	}
-}
-
 // getMessages creates a chat history based on all public channels in the Slack workspace.
 // The maximum number of chat messages is set to 10.
 func (b *Bridge) getMessages() {
@@ -148,5 +136,17 @@ func (b *Bridge) getMessages() {
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
+	}
+}
+
+// getChannels creates a map of channels that are available in the Slack workspace.
+// The channel ID is saved over the channel name.
+func (b *Bridge) getChannels() {
+	if list, err := b.api_bot.GetChannels(true); err == nil {
+		for _, channel := range list {
+			b.chat.chans[channel.Name] = channel.ID
+		}
+	} else {
+		b.trace.Printf("ERROR: %s\n", err)
 	}
 }
