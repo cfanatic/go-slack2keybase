@@ -21,9 +21,10 @@ type Bridge struct {
 }
 
 type chat struct {
-	chans map[string]string
-	users map[string]string
-	hist  map[string][]string
+	chans  map[string]string
+	users  map[string]string
+	hist   map[string][]string
+	wspace string
 }
 
 // New initializes the Slack connection and returns an object of type Bridge.
@@ -52,9 +53,10 @@ func (b *Bridge) Start() {
 		for msg := range b.rtm.IncomingEvents {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
-				b.trace.Print("INFO: Connection established")
+				b.chat.wspace = ev.Info.Team.Domain
 				b.getChannels()
 				b.getMessages()
+				b.trace.Print("INFO: Connection established")
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
 				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
@@ -85,7 +87,7 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 	args := []string{
 		"chat",
 		"send",
-		"asrg",
+		fmt.Sprintf("%s", b.chat.wspace),
 		fmt.Sprintf("[%s]  %s", name, text),
 		fmt.Sprintf("--channel=%s", channel)}
 	if err := exec.Command(cmd, args...).Run(); err == nil {
