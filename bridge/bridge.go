@@ -29,7 +29,7 @@ type chat struct {
 
 // New initializes the Slack connection and returns an object of type Bridge.
 // It takes the user and bot OAuth access tokens from Slack as inputs.
-// The debug status flag sends debug information to standard output.
+// The debug status flag enables debug information on standard output.
 func New(user_token, bot_token string, debug bool) Bridge {
 	b := Bridge{}
 	b.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
@@ -121,8 +121,8 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	}
 }
 
-// getMessages creates a chat history based on available channels in the Slack workspace.
-// The maximum number of chat messages per channel to be retrieved from Slack is 10.
+// getMessages creates a chat history for all channels in the Slack workspace.
+// The maximum number of chat messages per channel is 10 by default.
 func (b *Bridge) getMessages() {
 	param := slack.NewHistoryParameters()
 	param.Count = 10
