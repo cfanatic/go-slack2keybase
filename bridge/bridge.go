@@ -1,4 +1,4 @@
-// Package bridge sends chat messages from Slack to Keybase.
+// Package bridge forwards chat messages from Slack to Keybase.
 package bridge
 
 import (
@@ -28,6 +28,7 @@ type chat struct {
 
 // New initializes the Slack connection and returns an object of type Bridge.
 // It takes the user and bot OAuth access tokens from Slack as inputs.
+// The debug status flag sends debug information to standard output.
 func New(user_token, bot_token string, debug bool) Bridge {
 	b := Bridge{}
 	b.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
@@ -70,7 +71,7 @@ func (b *Bridge) Start() {
 }
 
 // Stop closes the connection by terminating all threads running in the background.
-// The method shall be executed before the main program exits.
+// This method shall be executed before the main program exits.
 func (b *Bridge) Stop() {
 	b.rtm.Disconnect()
 	fmt.Println()
@@ -94,8 +95,8 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 	}
 }
 
-// sendMessages sends a chat history to Keybase.
-// Input argument is the chat history as a map of string arrays.
+// sendMessages sends the complete or partial chat history to Keybase.
+// Input argument is the chat history and optionally a channel name.
 func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	send := func(channel, value string) {
 		hist := strings.Split(value, ";")
@@ -118,8 +119,8 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	}
 }
 
-// getMessages creates a chat history based on all channels in the Slack workspace.
-// The maximum number of chat messages per channel is set to 10.
+// getMessages creates a chat history based on available channels in the Slack workspace.
+// The maximum number of chat messages per channel to be retrieved from Slack is 10.
 func (b *Bridge) getMessages() {
 	param := slack.NewHistoryParameters()
 	param.Count = 10
