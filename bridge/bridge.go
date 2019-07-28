@@ -57,6 +57,8 @@ func (b *Bridge) Start() {
 				b.getChannels()
 				b.getMessages()
 				b.trace.Print("INFO: Connection established")
+			case *slack.HelloEvent:
+				b.sendMessages(b.chat.hist, "random")
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
 				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
@@ -111,6 +113,8 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 			for _, value := range hist[channel] {
 				defer send(channel, value)
 			}
+		} else {
+			b.trace.Printf("ERROR: History not available for channel #%s\n", channel)
 		}
 	} else {
 		for channel := range hist {
