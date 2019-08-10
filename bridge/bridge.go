@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	utime "time"
@@ -57,11 +58,11 @@ func (b *Bridge) Start() {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
 				b.chat.wspace = ev.Info.Team.Domain
-				b.getChannels()
-				b.getMessages()
+				// b.getChannels()
+				// b.getMessages()
 				b.trace.Print("INFO: Connection established")
 			case *slack.HelloEvent:
-				b.sendMessages(b.chat.hist, "random")
+				// b.sendMessages(b.chat.hist, "random")
 				b.syncMessages()
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
@@ -166,7 +167,19 @@ func (b *Bridge) syncMessages() {
 	if out, err := exec.Command(cmd, args...).Output(); err == nil {
 		msg := Message{}
 		if err := json.Unmarshal(out, &msg); err == nil {
-			fmt.Println(msg.Result.Messages[0].Msg.Content.Text.Body)
+			meta := make([]string, 0)
+			message := msg.Result.Messages[0].Msg.Content.Text.Body
+			re := regexp.MustCompile(`\[([^\[\]]*)\]`)
+			submatchall := re.FindAllString(message, -1)
+			for _, element := range submatchall {
+				element = strings.Trim(element, "[")
+				element = strings.Trim(element, "]")
+				meta = append(meta, element)
+			}
+			time, name := meta[0], meta[1]
+			text := strings.Split(message, "["+name+"]")[1]
+			text = strings.TrimSpace(text)
+			fmt.Println(time, name, text)
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
