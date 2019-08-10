@@ -2,6 +2,7 @@
 package bridge
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -61,6 +62,7 @@ func (b *Bridge) Start() {
 				b.trace.Print("INFO: Connection established")
 			case *slack.HelloEvent:
 				b.sendMessages(b.chat.hist, "random")
+				b.syncMessages()
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
 				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
@@ -148,6 +150,28 @@ func (b *Bridge) getMessages() {
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
+	}
+}
+
+// syncMessages performs a chat history synchronization between the Slack and Keybase.
+// Any messages which have not been sent yet from Slack are forwarded to Keybase.
+func (b *Bridge) syncMessages() {
+	cmd := "keybase"
+	args := []string{
+		"chat",
+		"api",
+		"-m",
+		fmt.Sprintf("{\"method\":\"read\",\"params\":{\"options\":{\"channel\":{\"name\":\"%s\",\"members_type\":\"team\",\"topic_name\":\"random\",\"topic_type\":\"chat\"},\"pagination\":{\"num\":1}}}}", b.chat.wspace),
+	}
+	if out, err := exec.Command(cmd, args...).Output(); err == nil {
+		msg := Message{}
+		if err := json.Unmarshal(out, &msg); err == nil {
+			fmt.Println(msg.Result.Messages[0].Msg.Content.Text.Body)
+		} else {
+			b.trace.Printf("ERROR: %s\n", err)
+		}
+	} else {
+		b.trace.Printf("ERROR: %s\n", err)
 	}
 }
 
