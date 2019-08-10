@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
+	utime "time"
 
 	"github.com/nlopes/slack"
 )
@@ -62,8 +64,8 @@ func (b *Bridge) Start() {
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
 				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
-				channel, name, text := cInfo.Name, strings.Title(uInfo.Name), ev.Text
-				b.sendMessage(channel, name, text)
+				channel, time, name, text := cInfo.Name, ev.Timestamp, strings.Title(uInfo.Name), ev.Text
+				b.sendMessage(channel, time, name, text)
 			case *slack.RTMError:
 				b.trace.Printf("ERROR: %s\n", ev.Error())
 			case *slack.InvalidAuthEvent:
@@ -84,16 +86,19 @@ func (b *Bridge) Stop() {
 
 // sendMessage sends a chat message to Keybase.
 // Input arguments are the Slack channel, user name and text content.
-func (b *Bridge) sendMessage(channel, name, text string) {
+func (b *Bridge) sendMessage(channel, time, name, text string) {
+	temp, _ := strconv.ParseInt(strings.Split(time, ".")[0], 10, 64)
+	timestamp := utime.Unix(temp, 0)
 	cmd := "keybase"
 	args := []string{
 		"chat",
 		"send",
 		fmt.Sprintf("%s", b.chat.wspace),
-		fmt.Sprintf("[%s]  %s", name, text),
-		fmt.Sprintf("--channel=%s", channel)}
+		fmt.Sprintf("[%s] [%s]  %s", timestamp, name, text),
+		fmt.Sprintf("--channel=%s", channel),
+	}
 	if err := exec.Command(cmd, args...).Run(); err == nil {
-		b.trace.Printf("#%s [%s] %s\n", channel, name, text)
+		b.trace.Printf("#%s [%s] [%s] %s\n", channel, timestamp, name, text)
 	} else {
 		b.trace.Printf("ERROR: %s\n", err)
 	}
@@ -104,8 +109,8 @@ func (b *Bridge) sendMessage(channel, name, text string) {
 func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	send := func(channel, value string) {
 		hist := strings.Split(value, ";")
-		name, text := strings.Title(hist[0]), strings.TrimSpace(hist[1])
-		b.sendMessage(channel, name, text)
+		time, name, text := hist[0], strings.Title(hist[1]), strings.TrimSpace(hist[2])
+		b.sendMessage(channel, time, name, text)
 	}
 	if len(arg) > 0 {
 		channel := arg[0]
@@ -137,7 +142,7 @@ func (b *Bridge) getMessages() {
 					user, _ := b.api_bot.GetUserInfo(msg.User)
 					b.chat.users[msg.User] = user.Name
 				}
-				text := fmt.Sprintf("%s;%s\n", b.chat.users[msg.User], msg.Text)
+				text := fmt.Sprintf("%s;%s;%s\n", msg.Msg.Timestamp, b.chat.users[msg.User], msg.Text)
 				b.chat.hist[key] = append(b.chat.hist[key], text)
 			}
 		} else {
