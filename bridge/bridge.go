@@ -58,11 +58,11 @@ func (b *Bridge) Start() {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
 				b.chat.wspace = ev.Info.Team.Domain
-				// b.getChannels()
-				// b.getMessages()
+				b.getChannels()
+				b.getMessages()
 				b.trace.Print("INFO: Connection established")
 			case *slack.HelloEvent:
-				// b.sendMessages(b.chat.hist, "random")
+				b.sendMessages(b.chat.hist, "random")
 				b.syncMessages()
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
@@ -90,8 +90,7 @@ func (b *Bridge) Stop() {
 // sendMessage sends a chat message to Keybase.
 // Input arguments are the Slack channel, user name and text content.
 func (b *Bridge) sendMessage(channel, time, name, text string) {
-	temp, _ := strconv.ParseInt(strings.Split(time, ".")[0], 10, 64)
-	timestamp := utime.Unix(temp, 0)
+	timestamp := b.timestamp(time)
 	cmd := "keybase"
 	args := []string{
 		"chat",
@@ -145,8 +144,8 @@ func (b *Bridge) getMessages() {
 					user, _ := b.api_bot.GetUserInfo(msg.User)
 					b.chat.users[msg.User] = strings.Title(user.Name)
 				}
-				text := fmt.Sprintf("%s;%s;%s", msg.Msg.Timestamp, b.chat.users[msg.User], msg.Text)
-				b.chat.hist[key] = append(b.chat.hist[key], text)
+				meta := fmt.Sprintf("%s;%s;%s", msg.Msg.Timestamp, b.chat.users[msg.User], msg.Text)
+				b.chat.hist[key] = append(b.chat.hist[key], meta)
 			}
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
@@ -157,7 +156,7 @@ func (b *Bridge) getMessages() {
 // syncMessages performs a chat history synchronization between the Slack and Keybase.
 // Any messages which have not been sent from Slack yet are forwarded to Keybase.
 func (b *Bridge) syncMessages() {
-	_, keybase := make(map[string]string), make(map[string]string)
+	slack, keybase := make(map[string]string), make(map[string]string)
 	cmd := "keybase"
 	args := []string{
 		"chat",
@@ -185,7 +184,14 @@ func (b *Bridge) syncMessages() {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
 	} else {
-		b.trace.Printf("ERROR: %s\n", err)
+		b.trace.Print("ERROR: History not available in Keybase")
+	}
+	if len(b.chat.hist["random"]) > 0 {
+		meta := strings.Split(b.chat.hist["random"][0], ";")
+		time := fmt.Sprintf("%s", b.timestamp(meta[0]))
+		slack["time"], slack["name"], slack["text"] = time, meta[1], meta[2]
+	} else {
+		b.trace.Print("ERROR: History not available in Slack")
 	}
 }
 
@@ -199,4 +205,9 @@ func (b *Bridge) getChannels() {
 	} else {
 		b.trace.Printf("ERROR: %s\n", err)
 	}
+}
+
+func (b *Bridge) timestamp(time string) utime.Time {
+	temp, _ := strconv.ParseInt(strings.Split(time, ".")[0], 10, 64)
+	return utime.Unix(temp, 0)
 }
