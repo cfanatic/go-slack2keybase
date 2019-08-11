@@ -1,6 +1,6 @@
 package bridge
 
-type Message struct {
+type KeybaseApi struct {
 	Result struct {
 		Messages []struct {
 			Msg struct {

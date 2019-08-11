@@ -32,6 +32,12 @@ type chat struct {
 	wspace string
 }
 
+type message struct {
+	time string
+	name string
+	text string
+}
+
 // New initializes the Slack connection and returns an object of type Bridge.
 // It takes the user and bot OAuth access tokens from Slack as inputs.
 // The debug status flag enables debug information on standard output.
@@ -58,10 +64,12 @@ func (b *Bridge) Start() {
 		for msg := range b.rtm.IncomingEvents {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
+				b.trace.Print("INFO: Connection established")
 				b.chat.wspace = ev.Info.Team.Domain
 				b.getChannels()
 				b.getMessages()
-				b.trace.Print("INFO: Connection established")
+			case *slack.HelloEvent:
+				b.trace.Print("INFO: Chat history synchronized")
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
 				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
@@ -134,6 +142,7 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 // Any messages which have not been sent from Slack yet are forwarded to Keybase.
 func (b *Bridge) getMessages() {
 	sync := func(hist *slack.History, key string) {
+		b.chat.hist[key] = []string{}
 		for _, msg := range hist.Messages {
 			if _, ok := b.chat.users[msg.User]; !ok {
 				user, _ := b.api_bot.GetUserInfo(msg.User)
@@ -143,16 +152,18 @@ func (b *Bridge) getMessages() {
 			b.chat.hist[key] = append(b.chat.hist[key], meta)
 		}
 	}
+	param := slack.HistoryParameters{}
 	for key, _ := range b.chat.chans {
-		lastsk, lastkb := make(map[string]string), make(map[string]string)
-		param := slack.NewHistoryParameters()
+		b.trace.Printf("INFO: Synchronizing channel \"%s\"\n", key)
+		param = slack.NewHistoryParameters()
 		param.Count = 1
+		lastsk, lastkb := message{}, message{}
 		if hist, err := b.api_user.GetChannelHistory(b.chat.chans[key], param); err == nil {
 			sync(hist, key)
 			if len(b.chat.hist[key]) > 0 {
 				meta := strings.Split(b.chat.hist[key][0], ";")
 				time := fmt.Sprintf("%s", b.timestamp(meta[0]))
-				lastsk["time"], lastsk["name"], lastsk["text"] = time, meta[1], meta[2]
+				lastsk.time, lastsk.name, lastsk.text = time, meta[1], meta[2]
 			}
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
@@ -165,10 +176,10 @@ func (b *Bridge) getMessages() {
 			fmt.Sprintf("{\"method\":\"read\",\"params\":{\"options\":{\"channel\":{\"name\":\"%s\",\"members_type\":\"team\",\"topic_name\":\"%s\",\"topic_type\":\"chat\"},\"pagination\":{\"num\":1}}}}", b.chat.wspace, key),
 		}
 		if hist, err := exec.Command(cmd, args...).Output(); err == nil {
-			msg := Message{}
-			if err := json.Unmarshal(hist, &msg); err == nil {
+			response := KeybaseApi{}
+			if err := json.Unmarshal(hist, &response); err == nil {
 				meta := make([]string, 0)
-				message := msg.Result.Messages[0].Msg.Content.Text.Body
+				message := response.Result.Messages[0].Msg.Content.Text.Body
 				re := regexp.MustCompile(`\[([^\[\]]*)\]`)
 				if submatches := re.FindAllString(message, -1); len(submatches) > 0 {
 					for _, element := range submatches {
@@ -179,7 +190,7 @@ func (b *Bridge) getMessages() {
 					text := ""
 					text = strings.Split(message, "["+meta[1]+"]")[1]
 					text = strings.TrimSpace(text)
-					lastkb["time"], lastkb["name"], lastkb["text"] = meta[0], meta[1], text
+					lastkb.time, lastkb.name, lastkb.text = meta[0], meta[1], text
 				}
 			} else {
 				b.trace.Printf("ERROR: %s\n", err)
@@ -188,10 +199,19 @@ func (b *Bridge) getMessages() {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
 		if eq := reflect.DeepEqual(lastsk, lastkb); eq == false {
-			if len(lastkb) == 0 {
-				b.trace.Printf("INFO: History in channel \"%s\" is empty", key)
+			if (message{} != lastkb) {
+				time, _ := utime.Parse("2006-01-02 15:04:05.999999999 -0700 MST", lastkb.time)
+				param = slack.NewHistoryParameters()
+				param.Oldest = strconv.FormatInt(time.Unix(), 10)
 			} else {
-				b.trace.Printf("INFO: History in channel \"%s\" is out-of-date", key)
+				param = slack.NewHistoryParameters()
+				param.Count = 10
+			}
+			if hist, err := b.api_user.GetChannelHistory(b.chat.chans[key], param); err == nil {
+				sync(hist, key)
+				b.sendMessages(b.chat.hist, key)
+			} else {
+				b.trace.Printf("ERROR: %s\n", err)
 			}
 		}
 	}
