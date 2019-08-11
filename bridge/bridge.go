@@ -157,41 +157,44 @@ func (b *Bridge) getMessages() {
 // Any messages which have not been sent from Slack yet are forwarded to Keybase.
 func (b *Bridge) syncMessages() {
 	slack, keybase := make(map[string]string), make(map[string]string)
-	cmd := "keybase"
-	args := []string{
-		"chat",
-		"api",
-		"-m",
-		fmt.Sprintf("{\"method\":\"read\",\"params\":{\"options\":{\"channel\":{\"name\":\"%s\",\"members_type\":\"team\",\"topic_name\":\"random\",\"topic_type\":\"chat\"},\"pagination\":{\"num\":1}}}}", b.chat.wspace),
-	}
-	if out, err := exec.Command(cmd, args...).Output(); err == nil {
-		msg := Message{}
-		if err := json.Unmarshal(out, &msg); err == nil {
-			meta := make([]string, 0)
-			message := msg.Result.Messages[0].Msg.Content.Text.Body
-			re := regexp.MustCompile(`\[([^\[\]]*)\]`)
-			submatches := re.FindAllString(message, -1)
-			for _, element := range submatches {
-				element = strings.Trim(element, "[")
-				element = strings.Trim(element, "]")
-				meta = append(meta, element)
-			}
-			text := ""
-			text = strings.Split(message, "["+meta[1]+"]")[1]
-			text = strings.TrimSpace(text)
-			keybase["time"], keybase["name"], keybase["text"] = meta[0], meta[1], text
-		} else {
-			b.trace.Printf("ERROR: %s\n", err)
+	for key, _ := range b.chat.chans {
+		cmd := "keybase"
+		args := []string{
+			"chat",
+			"api",
+			"-m",
+			fmt.Sprintf("{\"method\":\"read\",\"params\":{\"options\":{\"channel\":{\"name\":\"%s\",\"members_type\":\"team\",\"topic_name\":\"%s\",\"topic_type\":\"chat\"},\"pagination\":{\"num\":1}}}}", b.chat.wspace, key),
 		}
-	} else {
-		b.trace.Print("ERROR: History not available in Keybase")
-	}
-	if len(b.chat.hist["random"]) > 0 {
-		meta := strings.Split(b.chat.hist["random"][0], ";")
-		time := fmt.Sprintf("%s", b.timestamp(meta[0]))
-		slack["time"], slack["name"], slack["text"] = time, meta[1], meta[2]
-	} else {
-		b.trace.Print("ERROR: History not available in Slack")
+		if out, err := exec.Command(cmd, args...).Output(); err == nil {
+			msg := Message{}
+			if err := json.Unmarshal(out, &msg); err == nil {
+				meta := make([]string, 0)
+				message := msg.Result.Messages[0].Msg.Content.Text.Body
+				re := regexp.MustCompile(`\[([^\[\]]*)\]`)
+				if submatches := re.FindAllString(message, -1); len(submatches) > 0 {
+					for _, element := range submatches {
+						element = strings.Trim(element, "[")
+						element = strings.Trim(element, "]")
+						meta = append(meta, element)
+					}
+					text := ""
+					text = strings.Split(message, "["+meta[1]+"]")[1]
+					text = strings.TrimSpace(text)
+					keybase["time"], keybase["name"], keybase["text"] = meta[0], meta[1], text
+				}
+			} else {
+				b.trace.Printf("ERROR: %s\n", err)
+			}
+		} else {
+			b.trace.Print("ERROR: History not available in Keybase")
+		}
+		if len(b.chat.hist[key]) > 0 {
+			meta := strings.Split(b.chat.hist[key][0], ";")
+			time := fmt.Sprintf("%s", b.timestamp(meta[0]))
+			slack["time"], slack["name"], slack["text"] = time, meta[1], meta[2]
+		} else {
+			b.trace.Print("ERROR: History not available in Slack")
+		}
 	}
 }
 
