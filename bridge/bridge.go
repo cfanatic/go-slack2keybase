@@ -157,6 +157,7 @@ func (b *Bridge) getMessages() {
 // syncMessages performs a chat history synchronization between the Slack and Keybase.
 // Any messages which have not been sent from Slack yet are forwarded to Keybase.
 func (b *Bridge) syncMessages() {
+	_, keybase := make(map[string]string), make(map[string]string)
 	cmd := "keybase"
 	args := []string{
 		"chat",
@@ -176,10 +177,9 @@ func (b *Bridge) syncMessages() {
 				element = strings.Trim(element, "]")
 				meta = append(meta, element)
 			}
-			time, name := meta[0], meta[1]
-			text := strings.Split(message, "["+name+"]")[1]
-			text = strings.TrimSpace(text)
-			fmt.Println(time, name, text)
+			text := strings.Split(message, "["+meta[1]+"]")[1]
+			keybase["time"], keybase["name"] = meta[0], meta[1]
+			keybase["text"] = strings.TrimSpace(text)
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
