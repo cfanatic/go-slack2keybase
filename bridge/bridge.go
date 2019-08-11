@@ -97,7 +97,7 @@ func (b *Bridge) sendMessage(channel, time, name, text string) {
 		"chat",
 		"send",
 		fmt.Sprintf("%s", b.chat.wspace),
-		fmt.Sprintf("[%s] [%s]  %s", timestamp, name, text),
+		fmt.Sprintf("[%s] [%s] %s", timestamp, name, text),
 		fmt.Sprintf("--channel=%s", channel),
 	}
 	if err := exec.Command(cmd, args...).Run(); err == nil {
@@ -112,7 +112,7 @@ func (b *Bridge) sendMessage(channel, time, name, text string) {
 func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	send := func(channel, value string) {
 		hist := strings.Split(value, ";")
-		time, name, text := hist[0], strings.Title(hist[1]), strings.TrimSpace(hist[2])
+		time, name, text := hist[0], strings.Title(hist[1]), hist[2]
 		b.sendMessage(channel, time, name, text)
 	}
 	if len(arg) > 0 {
@@ -177,9 +177,10 @@ func (b *Bridge) syncMessages() {
 				element = strings.Trim(element, "]")
 				meta = append(meta, element)
 			}
-			text := strings.Split(message, "["+meta[1]+"]")[1]
-			keybase["time"], keybase["name"] = meta[0], meta[1]
-			keybase["text"] = strings.TrimSpace(text)
+			text := ""
+			text = strings.Split(message, "["+meta[1]+"]")[1]
+			text = strings.TrimSpace(text)
+			keybase["time"], keybase["name"], keybase["text"] = meta[0], meta[1], text
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
