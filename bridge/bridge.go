@@ -112,7 +112,7 @@ func (b *Bridge) sendMessage(channel, time, name, text string) {
 func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	send := func(channel, value string) {
 		hist := strings.Split(value, ";")
-		time, name, text := hist[0], strings.Title(hist[1]), hist[2]
+		time, name, text := hist[0], hist[1], hist[2]
 		b.sendMessage(channel, time, name, text)
 	}
 	if len(arg) > 0 {
@@ -143,9 +143,9 @@ func (b *Bridge) getMessages() {
 			for _, msg := range hist.Messages {
 				if _, ok := b.chat.users[msg.User]; !ok {
 					user, _ := b.api_bot.GetUserInfo(msg.User)
-					b.chat.users[msg.User] = user.Name
+					b.chat.users[msg.User] = strings.Title(user.Name)
 				}
-				text := fmt.Sprintf("%s;%s;%s\n", msg.Msg.Timestamp, b.chat.users[msg.User], msg.Text)
+				text := fmt.Sprintf("%s;%s;%s", msg.Msg.Timestamp, b.chat.users[msg.User], msg.Text)
 				b.chat.hist[key] = append(b.chat.hist[key], text)
 			}
 		} else {
