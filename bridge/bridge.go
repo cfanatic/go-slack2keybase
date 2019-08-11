@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -61,9 +62,6 @@ func (b *Bridge) Start() {
 				b.getChannels()
 				b.getMessages()
 				b.trace.Print("INFO: Connection established")
-			case *slack.HelloEvent:
-				b.sendMessages(b.chat.hist, "random")
-				b.syncMessages()
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
 				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
@@ -132,32 +130,33 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 	}
 }
 
-// getMessages creates a chat history for all channels in the Slack workspace.
-// The maximum number of chat messages per channel is 10 by default.
+// getMessages performs a chat history synchronization between the Slack and Keybase.
+// Any messages which have not been sent from Slack yet are forwarded to Keybase.
 func (b *Bridge) getMessages() {
-	param := slack.NewHistoryParameters()
-	param.Count = 10
+	sync := func(hist *slack.History, key string) {
+		for _, msg := range hist.Messages {
+			if _, ok := b.chat.users[msg.User]; !ok {
+				user, _ := b.api_bot.GetUserInfo(msg.User)
+				b.chat.users[msg.User] = strings.Title(user.Name)
+			}
+			meta := fmt.Sprintf("%s;%s;%s", msg.Msg.Timestamp, b.chat.users[msg.User], msg.Text)
+			b.chat.hist[key] = append(b.chat.hist[key], meta)
+		}
+	}
 	for key, _ := range b.chat.chans {
+		lastsk, lastkb := make(map[string]string), make(map[string]string)
+		param := slack.NewHistoryParameters()
+		param.Count = 1
 		if hist, err := b.api_user.GetChannelHistory(b.chat.chans[key], param); err == nil {
-			for _, msg := range hist.Messages {
-				if _, ok := b.chat.users[msg.User]; !ok {
-					user, _ := b.api_bot.GetUserInfo(msg.User)
-					b.chat.users[msg.User] = strings.Title(user.Name)
-				}
-				meta := fmt.Sprintf("%s;%s;%s", msg.Msg.Timestamp, b.chat.users[msg.User], msg.Text)
-				b.chat.hist[key] = append(b.chat.hist[key], meta)
+			sync(hist, key)
+			if len(b.chat.hist[key]) > 0 {
+				meta := strings.Split(b.chat.hist[key][0], ";")
+				time := fmt.Sprintf("%s", b.timestamp(meta[0]))
+				lastsk["time"], lastsk["name"], lastsk["text"] = time, meta[1], meta[2]
 			}
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
-	}
-}
-
-// syncMessages performs a chat history synchronization between the Slack and Keybase.
-// Any messages which have not been sent from Slack yet are forwarded to Keybase.
-func (b *Bridge) syncMessages() {
-	slack, keybase := make(map[string]string), make(map[string]string)
-	for key, _ := range b.chat.chans {
 		cmd := "keybase"
 		args := []string{
 			"chat",
@@ -165,9 +164,9 @@ func (b *Bridge) syncMessages() {
 			"-m",
 			fmt.Sprintf("{\"method\":\"read\",\"params\":{\"options\":{\"channel\":{\"name\":\"%s\",\"members_type\":\"team\",\"topic_name\":\"%s\",\"topic_type\":\"chat\"},\"pagination\":{\"num\":1}}}}", b.chat.wspace, key),
 		}
-		if out, err := exec.Command(cmd, args...).Output(); err == nil {
+		if hist, err := exec.Command(cmd, args...).Output(); err == nil {
 			msg := Message{}
-			if err := json.Unmarshal(out, &msg); err == nil {
+			if err := json.Unmarshal(hist, &msg); err == nil {
 				meta := make([]string, 0)
 				message := msg.Result.Messages[0].Msg.Content.Text.Body
 				re := regexp.MustCompile(`\[([^\[\]]*)\]`)
@@ -180,20 +179,20 @@ func (b *Bridge) syncMessages() {
 					text := ""
 					text = strings.Split(message, "["+meta[1]+"]")[1]
 					text = strings.TrimSpace(text)
-					keybase["time"], keybase["name"], keybase["text"] = meta[0], meta[1], text
+					lastkb["time"], lastkb["name"], lastkb["text"] = meta[0], meta[1], text
 				}
 			} else {
 				b.trace.Printf("ERROR: %s\n", err)
 			}
 		} else {
-			b.trace.Print("ERROR: History not available in Keybase")
+			b.trace.Printf("ERROR: %s\n", err)
 		}
-		if len(b.chat.hist[key]) > 0 {
-			meta := strings.Split(b.chat.hist[key][0], ";")
-			time := fmt.Sprintf("%s", b.timestamp(meta[0]))
-			slack["time"], slack["name"], slack["text"] = time, meta[1], meta[2]
-		} else {
-			b.trace.Print("ERROR: History not available in Slack")
+		if eq := reflect.DeepEqual(lastsk, lastkb); eq == false {
+			if len(lastkb) == 0 {
+				b.trace.Printf("INFO: History in channel \"%s\" is empty", key)
+			} else {
+				b.trace.Printf("INFO: History in channel \"%s\" is out-of-date", key)
+			}
 		}
 	}
 }
