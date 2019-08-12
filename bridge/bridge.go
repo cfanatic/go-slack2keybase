@@ -28,14 +28,15 @@ type Bridge struct {
 type chat struct {
 	chans  map[string]string
 	users  map[string]string
-	hist   map[string][]string
+	hist   map[string][]message
 	wspace string
 }
 
 type message struct {
-	time string
-	name string
-	text string
+	time    utime.Time
+	channel string
+	name    string
+	text    string
 }
 
 // New initializes the Slack connection and returns an object of type Bridge.
@@ -49,7 +50,7 @@ func New(user_token, bot_token string, debug bool) Bridge {
 	b.rtm = b.api_bot.NewRTM()
 	b.chat.chans = make(map[string]string)
 	b.chat.users = make(map[string]string)
-	b.chat.hist = make(map[string][]string)
+	b.chat.hist = make(map[string][]message)
 	if !debug {
 		b.trace.SetOutput(ioutil.Discard)
 	}
@@ -73,8 +74,13 @@ func (b *Bridge) Start() {
 			case *slack.MessageEvent:
 				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
 				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
-				channel, time, name, text := cInfo.Name, ev.Timestamp, strings.Title(uInfo.Name), ev.Text
-				b.sendMessage(channel, time, name, text)
+				msg := message{
+					b.timestamp(ev.Timestamp),
+					cInfo.Name,
+					strings.Title(uInfo.Name),
+					ev.Text,
+				}
+				b.sendMessage(msg)
 			case *slack.RTMError:
 				b.trace.Printf("ERROR: %s\n", ev.Error())
 			case *slack.InvalidAuthEvent:
@@ -95,18 +101,17 @@ func (b *Bridge) Stop() {
 
 // sendMessage sends a chat message to Keybase.
 // Input arguments are the Slack channel, user name and text content.
-func (b *Bridge) sendMessage(channel, time, name, text string) {
-	timestamp := b.timestamp(time)
+func (b *Bridge) sendMessage(msg message) {
 	cmd := "keybase"
 	args := []string{
 		"chat",
 		"send",
 		fmt.Sprintf("%s", b.chat.wspace),
-		fmt.Sprintf("[%s] [%s] %s", timestamp, name, text),
-		fmt.Sprintf("--channel=%s", channel),
+		fmt.Sprintf("[%s] [%s] %s", msg.time, msg.name, msg.text),
+		fmt.Sprintf("--channel=%s", msg.channel),
 	}
 	if err := exec.Command(cmd, args...).Run(); err == nil {
-		b.trace.Printf("#%s [%s] [%s] %s\n", channel, timestamp, name, text)
+		b.trace.Printf("#%s [%s] [%s] %s\n", msg.channel, msg.time, msg.name, msg.text)
 	} else {
 		b.trace.Printf("ERROR: %s\n", err)
 	}
@@ -114,25 +119,20 @@ func (b *Bridge) sendMessage(channel, time, name, text string) {
 
 // sendMessages sends the complete or partial chat history to Keybase.
 // Input argument is the chat history and optionally a channel name.
-func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
-	send := func(channel, value string) {
-		hist := strings.Split(value, ";")
-		time, name, text := hist[0], hist[1], hist[2]
-		b.sendMessage(channel, time, name, text)
-	}
+func (b *Bridge) sendMessages(hist map[string][]message, arg ...string) {
 	if len(arg) > 0 {
 		channel := arg[0]
 		if _, ok := hist[channel]; ok == true {
-			for _, value := range hist[channel] {
-				defer send(channel, value)
+			for _, msg := range hist[channel] {
+				defer b.sendMessage(msg)
 			}
 		} else {
 			b.trace.Printf("ERROR: History not available for channel #%s\n", channel)
 		}
 	} else {
 		for channel := range hist {
-			for _, value := range hist[channel] {
-				defer send(channel, value)
+			for _, msg := range hist[channel] {
+				defer b.sendMessage(msg)
 			}
 		}
 	}
@@ -141,29 +141,28 @@ func (b *Bridge) sendMessages(hist map[string][]string, arg ...string) {
 // getMessages performs a chat history synchronization between the Slack and Keybase.
 // Any messages which have not been sent from Slack yet are forwarded to Keybase.
 func (b *Bridge) getMessages() {
-	sync := func(hist *slack.History, key string) {
-		b.chat.hist[key] = []string{}
+	sync := func(hist *slack.History, channel string) int {
+		b.chat.hist[channel] = []message{}
 		for _, msg := range hist.Messages {
 			if _, ok := b.chat.users[msg.User]; !ok {
 				user, _ := b.api_bot.GetUserInfo(msg.User)
 				b.chat.users[msg.User] = strings.Title(user.Name)
 			}
-			meta := fmt.Sprintf("%s;%s;%s", msg.Msg.Timestamp, b.chat.users[msg.User], msg.Text)
-			b.chat.hist[key] = append(b.chat.hist[key], meta)
+			meta := message{b.timestamp(msg.Msg.Timestamp), channel, b.chat.users[msg.User], msg.Text}
+			b.chat.hist[channel] = append(b.chat.hist[channel], meta)
 		}
+		return len(b.chat.hist[channel])
 	}
 	param := slack.HistoryParameters{}
-	for key, _ := range b.chat.chans {
-		b.trace.Printf("INFO: Synchronizing channel \"%s\"\n", key)
+	for channel, _ := range b.chat.chans {
+		b.trace.Printf("INFO: Synchronizing channel \"%s\"\n", channel)
 		param = slack.NewHistoryParameters()
 		param.Count = 1
 		lastsk, lastkb := message{}, message{}
-		if hist, err := b.api_user.GetChannelHistory(b.chat.chans[key], param); err == nil {
-			sync(hist, key)
-			if len(b.chat.hist[key]) > 0 {
-				meta := strings.Split(b.chat.hist[key][0], ";")
-				time := fmt.Sprintf("%s", b.timestamp(meta[0]))
-				lastsk.time, lastsk.name, lastsk.text = time, meta[1], meta[2]
+		if hist, err := b.api_user.GetChannelHistory(b.chat.chans[channel], param); err == nil {
+			num := sync(hist, channel)
+			if num > 0 {
+				lastsk = b.chat.hist[channel][0]
 			}
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
@@ -173,24 +172,26 @@ func (b *Bridge) getMessages() {
 			"chat",
 			"api",
 			"-m",
-			fmt.Sprintf("{\"method\":\"read\",\"params\":{\"options\":{\"channel\":{\"name\":\"%s\",\"members_type\":\"team\",\"topic_name\":\"%s\",\"topic_type\":\"chat\"},\"pagination\":{\"num\":1}}}}", b.chat.wspace, key),
+			fmt.Sprintf("{\"method\":\"read\",\"params\":{\"options\":{\"channel\":{\"name\":\"%s\",\"members_type\":\"team\",\"topic_name\":\"%s\",\"topic_type\":\"chat\"},\"pagination\":{\"num\":1}}}}", b.chat.wspace, channel),
 		}
 		if hist, err := exec.Command(cmd, args...).Output(); err == nil {
 			response := KeybaseApi{}
 			if err := json.Unmarshal(hist, &response); err == nil {
 				meta := make([]string, 0)
-				message := response.Result.Messages[0].Msg.Content.Text.Body
+				msg := response.Result.Messages[0].Msg.Content.Text.Body
 				re := regexp.MustCompile(`\[([^\[\]]*)\]`)
-				if submatches := re.FindAllString(message, -1); len(submatches) > 0 {
+				if submatches := re.FindAllString(msg, -1); len(submatches) > 0 {
 					for _, element := range submatches {
 						element = strings.Trim(element, "[")
 						element = strings.Trim(element, "]")
 						meta = append(meta, element)
 					}
+					time, _ := utime.Parse("2006-01-02 15:04:05.999999999 -0700 MST", meta[0])
+					name := meta[1]
 					text := ""
-					text = strings.Split(message, "["+meta[1]+"]")[1]
+					text = strings.Split(msg, "["+meta[1]+"]")[1]
 					text = strings.TrimSpace(text)
-					lastkb.time, lastkb.name, lastkb.text = meta[0], meta[1], text
+					lastkb.time, lastkb.channel, lastkb.name, lastkb.text = time, channel, name, text
 				}
 			} else {
 				b.trace.Printf("ERROR: %s\n", err)
@@ -200,16 +201,15 @@ func (b *Bridge) getMessages() {
 		}
 		if eq := reflect.DeepEqual(lastsk, lastkb); eq == false {
 			if (message{} != lastkb) {
-				time, _ := utime.Parse("2006-01-02 15:04:05.999999999 -0700 MST", lastkb.time)
 				param = slack.NewHistoryParameters()
-				param.Oldest = strconv.FormatInt(time.Unix(), 10)
+				param.Oldest = strconv.FormatInt(lastkb.time.Unix(), 10)
 			} else {
 				param = slack.NewHistoryParameters()
 				param.Count = 10
 			}
-			if hist, err := b.api_user.GetChannelHistory(b.chat.chans[key], param); err == nil {
-				sync(hist, key)
-				b.sendMessages(b.chat.hist, key)
+			if hist, err := b.api_user.GetChannelHistory(b.chat.chans[channel], param); err == nil {
+				_ = sync(hist, channel)
+				b.sendMessages(b.chat.hist, channel)
 			} else {
 				b.trace.Printf("ERROR: %s\n", err)
 			}
