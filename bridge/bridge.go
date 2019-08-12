@@ -164,15 +164,16 @@ func (b *Bridge) getMessages() {
 		param = slack.NewHistoryParameters()
 		param.Count = 1
 		if hist, err := b.api.skuser.GetChannelHistory(b.chat.chans[channel], param); err == nil {
-			num := sync(hist, channel)
-			if num > 0 {
+			if num := sync(hist, channel); num > 0 {
 				skmsg = b.chat.hist[channel][0]
 			}
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
 		if hist, err := b.api.kb.GetChannelHistory(b.chat.wspace, channel, param); err == nil {
-			kbmsg = hist[channel][0]
+			if num := len(hist[channel]); num > 0 {
+				kbmsg = hist[channel][0]
+			}
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
