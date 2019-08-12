@@ -8,8 +8,10 @@ import (
 	"github.com/cfanatic/go-slack2keybase/bridge"
 )
 
-const oauth_user = "<INSERT_USER_TOKEN>"
-const oauth_bot = "<INSERT_BOT_TOKEN>"
+const (
+	oauth_user = "<INSERT_USER_TOKEN>"
+	oauth_bot  = "<INSERT_BOT_TOKEN>"
+)
 
 func main() {
 	bridge := bridge.New(oauth_user, oauth_bot, true)
