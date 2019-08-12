@@ -2,14 +2,12 @@
 package bridge
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 	utime "time"
@@ -18,11 +16,16 @@ import (
 )
 
 type Bridge struct {
-	trace    *(log.Logger)
-	api_user *(slack.Client)
-	api_bot  *(slack.Client)
-	rtm      *(slack.RTM)
-	chat     chat
+	trace *log.Logger
+	api   messenger
+	chat  chat
+}
+
+type messenger struct {
+	skuser *(slack.Client)
+	skbot  *(slack.Client)
+	skrtm  *(slack.RTM)
+	kb     *Keybase
 }
 
 type chat struct {
@@ -45,9 +48,10 @@ type message struct {
 func New(user_token, bot_token string, debug bool) Bridge {
 	b := Bridge{}
 	b.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
-	b.api_user = slack.New(user_token, slack.OptionDebug(false))
-	b.api_bot = slack.New(bot_token, slack.OptionDebug(false))
-	b.rtm = b.api_bot.NewRTM()
+	b.api.skuser = slack.New(user_token, slack.OptionDebug(false))
+	b.api.skbot = slack.New(bot_token, slack.OptionDebug(false))
+	b.api.skrtm = b.api.skbot.NewRTM()
+	b.api.kb = NewKeybase()
 	b.chat.chans = make(map[string]string)
 	b.chat.users = make(map[string]string)
 	b.chat.hist = make(map[string][]message)
@@ -60,9 +64,9 @@ func New(user_token, bot_token string, debug bool) Bridge {
 // Start listens for incoming and outgoing events in an endless loop.
 // Chat messages sent to Slack will be forwarded to Keybase.
 func (b *Bridge) Start() {
-	go b.rtm.ManageConnection()
+	go b.api.skrtm.ManageConnection()
 	go func() {
-		for msg := range b.rtm.IncomingEvents {
+		for msg := range b.api.skrtm.IncomingEvents {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
 				b.trace.Print("INFO: Connection established")
@@ -72,8 +76,8 @@ func (b *Bridge) Start() {
 			case *slack.HelloEvent:
 				b.trace.Print("INFO: Chat history synchronized")
 			case *slack.MessageEvent:
-				uInfo, _ := b.api_bot.GetUserInfo(ev.User)
-				cInfo, _ := b.api_bot.GetChannelInfo(ev.Channel)
+				uInfo, _ := b.api.skbot.GetUserInfo(ev.User)
+				cInfo, _ := b.api.skbot.GetChannelInfo(ev.Channel)
 				msg := message{
 					b.timestamp(ev.Timestamp),
 					cInfo.Name,
@@ -94,7 +98,7 @@ func (b *Bridge) Start() {
 // Stop closes the connection by terminating all threads running in the background.
 // This method shall be executed before the main program exits.
 func (b *Bridge) Stop() {
-	b.rtm.Disconnect()
+	b.api.skrtm.Disconnect()
 	fmt.Println()
 	b.trace.Print("INFO: Closing connection")
 }
@@ -145,7 +149,7 @@ func (b *Bridge) getMessages() {
 		b.chat.hist[channel] = []message{}
 		for _, msg := range hist.Messages {
 			if _, ok := b.chat.users[msg.User]; !ok {
-				user, _ := b.api_bot.GetUserInfo(msg.User)
+				user, _ := b.api.skbot.GetUserInfo(msg.User)
 				b.chat.users[msg.User] = strings.Title(user.Name)
 			}
 			meta := message{b.timestamp(msg.Msg.Timestamp), channel, b.chat.users[msg.User], msg.Text}
@@ -154,60 +158,33 @@ func (b *Bridge) getMessages() {
 		return len(b.chat.hist[channel])
 	}
 	param := slack.HistoryParameters{}
+	skmsg, kbmsg := message{}, message{}
 	for channel, _ := range b.chat.chans {
 		b.trace.Printf("INFO: Synchronizing channel \"%s\"\n", channel)
 		param = slack.NewHistoryParameters()
 		param.Count = 1
-		lastsk, lastkb := message{}, message{}
-		if hist, err := b.api_user.GetChannelHistory(b.chat.chans[channel], param); err == nil {
+		if hist, err := b.api.skuser.GetChannelHistory(b.chat.chans[channel], param); err == nil {
 			num := sync(hist, channel)
 			if num > 0 {
-				lastsk = b.chat.hist[channel][0]
+				skmsg = b.chat.hist[channel][0]
 			}
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
-		cmd := "keybase"
-		args := []string{
-			"chat",
-			"api",
-			"-m",
-			fmt.Sprintf("{\"method\":\"read\",\"params\":{\"options\":{\"channel\":{\"name\":\"%s\",\"members_type\":\"team\",\"topic_name\":\"%s\",\"topic_type\":\"chat\"},\"pagination\":{\"num\":1}}}}", b.chat.wspace, channel),
-		}
-		if hist, err := exec.Command(cmd, args...).Output(); err == nil {
-			response := KeybaseApi{}
-			if err := json.Unmarshal(hist, &response); err == nil {
-				meta := make([]string, 0)
-				msg := response.Result.Messages[0].Msg.Content.Text.Body
-				re := regexp.MustCompile(`\[([^\[\]]*)\]`)
-				if submatches := re.FindAllString(msg, -1); len(submatches) > 0 {
-					for _, element := range submatches {
-						element = strings.Trim(element, "[")
-						element = strings.Trim(element, "]")
-						meta = append(meta, element)
-					}
-					time, _ := utime.Parse("2006-01-02 15:04:05.999999999 -0700 MST", meta[0])
-					name := meta[1]
-					text := ""
-					text = strings.Split(msg, "["+meta[1]+"]")[1]
-					text = strings.TrimSpace(text)
-					lastkb.time, lastkb.channel, lastkb.name, lastkb.text = time, channel, name, text
-				}
-			} else {
-				b.trace.Printf("ERROR: %s\n", err)
-			}
+		if hist, err := b.api.kb.GetChannelHistory(b.chat.wspace, channel, param); err == nil {
+			kbmsg = hist[channel][0]
 		} else {
 			b.trace.Printf("ERROR: %s\n", err)
 		}
-		if eq := reflect.DeepEqual(lastsk, lastkb); eq == false {
-			if (message{} != lastkb) {
+		if eq := reflect.DeepEqual(skmsg, kbmsg); eq == false {
+			if (message{} != kbmsg) {
 				param = slack.NewHistoryParameters()
-				param.Oldest = strconv.FormatInt(lastkb.time.Unix(), 10)
+				param.Oldest = strconv.FormatInt(kbmsg.time.Unix(), 10)
 			} else {
 				param = slack.NewHistoryParameters()
 				param.Count = 10
 			}
-			if hist, err := b.api_user.GetChannelHistory(b.chat.chans[channel], param); err == nil {
+			if hist, err := b.api.skuser.GetChannelHistory(b.chat.chans[channel], param); err == nil {
 				_ = sync(hist, channel)
 				b.sendMessages(b.chat.hist, channel)
 			} else {
@@ -220,7 +197,7 @@ func (b *Bridge) getMessages() {
 // getChannels creates a map of channels that are available in the Slack workspace.
 // The channel ID is saved over the channel name.
 func (b *Bridge) getChannels() {
-	if list, err := b.api_bot.GetChannels(true); err == nil {
+	if list, err := b.api.skbot.GetChannels(true); err == nil {
 		for _, channel := range list {
 			b.chat.chans[channel.Name] = channel.ID
 		}
