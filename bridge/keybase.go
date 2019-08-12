@@ -64,13 +64,15 @@ type api struct {
 	} `json:"result"`
 }
 
+type history = slack.HistoryParameters
+
 func NewKeybase() *Keybase {
 	kb := Keybase{}
 	kb.hist = make(map[string][]message)
 	return &kb
 }
 
-func (kb *Keybase) GetChannelHistory(team, channel string, param slack.HistoryParameters) (hist map[string][]message, err error) {
+func (kb *Keybase) GetChannelHistory(team, channel string, param history) (hist map[string][]message, err error) {
 	var resp []byte
 	opt := fmt.Sprintf(`{
 			"method":"read",
