@@ -13,7 +13,7 @@ import (
 
 type Keybase struct {
 	response api
-	hist     map[string][]message
+	history  map[string][]message
 }
 
 type api struct {
@@ -68,7 +68,7 @@ type history = slack.HistoryParameters
 
 func NewKeybase() *Keybase {
 	kb := Keybase{}
-	kb.hist = make(map[string][]message)
+	kb.history = make(map[string][]message)
 	return &kb
 }
 
@@ -98,10 +98,10 @@ func (kb *Keybase) GetChannelHistory(team, channel string, param history) (hist 
 		opt,
 	}
 	if resp, err = exec.Command(cmd, args...).Output(); err != nil {
-		return kb.hist, err
+		return kb.history, err
 	}
 	if err := json.Unmarshal(resp, &kb.response); err != nil {
-		return kb.hist, err
+		return kb.history, err
 	}
 	for idx := 0; idx < param.Count; idx++ {
 		meta := make([]string, 0)
@@ -119,8 +119,8 @@ func (kb *Keybase) GetChannelHistory(team, channel string, param history) (hist 
 			text = strings.Split(body, "["+meta[1]+"]")[1]
 			text = strings.TrimSpace(text)
 			msg := message{time, channel, name, text}
-			kb.hist[channel] = append(kb.hist[channel], msg)
+			kb.history[channel] = append(kb.history[channel], msg)
 		}
 	}
-	return kb.hist, nil
+	return kb.history, nil
 }
