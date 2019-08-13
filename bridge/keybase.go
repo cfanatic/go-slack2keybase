@@ -72,8 +72,42 @@ func NewKeybase() *Keybase {
 	return &kb
 }
 
-func (kb *Keybase) GetChannelHistory(team, channel string, param history) (hist map[string][]message, err error) {
-	var resp []byte
+func (kb *Keybase) GetChannelHistory(team, channel string, param history) (map[string][]message, error) {
+	idx := 0
+	id := ""
+	for idx < param.Count {
+		if err := kb.getMessageJSON(team, channel, id); err != nil {
+			empty := make(map[string][]message)
+			return empty, err
+		}
+		if kb.response.Result.Messages[0].Msg.Content.Type == "text" {
+			meta := make([]string, 0)
+			body := kb.response.Result.Messages[0].Msg.Content.Text.Body
+			re := regexp.MustCompile(`\[([^\[\]]*)\]`)
+			if submatches := re.FindAllString(body, -1); len(submatches) > 0 {
+				for _, element := range submatches {
+					element = strings.Trim(element, "[")
+					element = strings.Trim(element, "]")
+					meta = append(meta, element)
+				}
+				time, _ := utime.Parse("2006-01-02 15:04:05.999999999 -0700 MST", meta[0])
+				name := meta[1]
+				text := ""
+				text = strings.Split(body, "["+meta[1]+"]")[1]
+				text = strings.TrimSpace(text)
+				msg := message{time, channel, name, text}
+				kb.history[channel] = append(kb.history[channel], msg)
+			}
+			idx = idx + 1
+		} else {
+			id = kb.response.Result.Pagination.Next
+		}
+	}
+	return kb.history, nil
+}
+
+func (kb *Keybase) getMessageJSON(team, channel, id string) (err error) {
+	response := []byte{}
 	opt := fmt.Sprintf(`{
 			"method":"read",
 			"params":{
@@ -85,11 +119,12 @@ func (kb *Keybase) GetChannelHistory(team, channel string, param history) (hist 
 						"topic_type":"chat"
 					},
 					"pagination":{
-						"num":%d
+						"num":1,
+						"next":"%s"
 					}
 				}
 			}
-		}`, team, channel, param.Count)
+		}`, team, channel, id)
 	cmd := "keybase"
 	args := []string{
 		"chat",
@@ -97,30 +132,11 @@ func (kb *Keybase) GetChannelHistory(team, channel string, param history) (hist 
 		"-m",
 		opt,
 	}
-	if resp, err = exec.Command(cmd, args...).Output(); err != nil {
-		return kb.history, err
+	if response, err = exec.Command(cmd, args...).Output(); err != nil {
+		return err
 	}
-	if err := json.Unmarshal(resp, &kb.response); err != nil {
-		return kb.history, err
+	if err := json.Unmarshal(response, &kb.response); err != nil {
+		return err
 	}
-	for idx := 0; idx < param.Count; idx++ {
-		meta := make([]string, 0)
-		body := kb.response.Result.Messages[idx].Msg.Content.Text.Body
-		re := regexp.MustCompile(`\[([^\[\]]*)\]`)
-		if submatches := re.FindAllString(body, -1); len(submatches) > 0 {
-			for _, element := range submatches {
-				element = strings.Trim(element, "[")
-				element = strings.Trim(element, "]")
-				meta = append(meta, element)
-			}
-			time, _ := utime.Parse("2006-01-02 15:04:05.999999999 -0700 MST", meta[0])
-			name := meta[1]
-			text := ""
-			text = strings.Split(body, "["+meta[1]+"]")[1]
-			text = strings.TrimSpace(text)
-			msg := message{time, channel, name, text}
-			kb.history[channel] = append(kb.history[channel], msg)
-		}
-	}
-	return kb.history, nil
+	return nil
 }
