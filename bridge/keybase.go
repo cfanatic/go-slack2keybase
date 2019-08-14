@@ -61,6 +61,8 @@ type api struct {
 			Last           bool   `json:"last"`
 			ForceFirstPage bool   `json:"forceFirstPage"`
 		} `json:"pagination"`
+		Message string `json:"message"`
+		ID      int    `json:"id"`
 	} `json:"result"`
 }
 
@@ -72,9 +74,8 @@ func NewKeybase() *Keybase {
 	return &kb
 }
 
-func (kb *Keybase) GetChannelHistory(team, channel string, param history) (map[string][]message, error) {
-	idx := 0
-	id := ""
+func (kb *Keybase) GetChannelHistory(team, channel string, param history) (history map[string][]message, err error) {
+	idx, id := 0, ""
 	for idx < param.Count {
 		if err := kb.getMessageJSON(team, channel, id); err != nil {
 			empty := make(map[string][]message)
@@ -104,6 +105,51 @@ func (kb *Keybase) GetChannelHistory(team, channel string, param history) (map[s
 		}
 	}
 	return kb.history, nil
+}
+
+func (kb *Keybase) SendChannelMessage(team string, msg message) (result string, err error) {
+	body, result := fmt.Sprintf("[%s] [%s] %s", msg.time, msg.name, msg.text), ""
+	defer func() {
+		result = kb.response.Result.Message
+	}()
+	if err := kb.sendMessageJSON(team, msg.channel, body); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func (kb *Keybase) sendMessageJSON(team, channel, body string) (err error) {
+	response := []byte{}
+	opt := fmt.Sprintf(`{
+			"method":"send",
+			"params":{
+				"options":{
+					"channel":{
+						"name":"%s",
+						"members_type":"team",
+						"topic_name":"%s",
+						"topic_type":"chat"
+					},
+					"message":{
+						"body":"%s"
+					}
+				}
+			}
+		}`, team, channel, body)
+	cmd := "keybase"
+	args := []string{
+		"chat",
+		"api",
+		"-m",
+		opt,
+	}
+	if response, err = exec.Command(cmd, args...).Output(); err != nil {
+		return err
+	}
+	if err = json.Unmarshal(response, &kb.response); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (kb *Keybase) getMessageJSON(team, channel, id string) (err error) {

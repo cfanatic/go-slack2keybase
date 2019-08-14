@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"reflect"
 	"strconv"
 	"strings"
@@ -78,12 +77,7 @@ func (b *Bridge) Start() {
 			case *slack.MessageEvent:
 				uInfo, _ := b.api.skbot.GetUserInfo(ev.User)
 				cInfo, _ := b.api.skbot.GetChannelInfo(ev.Channel)
-				msg := message{
-					b.timestamp(ev.Timestamp),
-					cInfo.Name,
-					strings.Title(uInfo.Name),
-					ev.Text,
-				}
+				msg := message{b.timestamp(ev.Timestamp), cInfo.Name, strings.Title(uInfo.Name), ev.Text}
 				b.sendMessage(msg)
 			case *slack.RTMError:
 				b.trace.Printf("ERROR: %s\n", ev.Error())
@@ -104,20 +98,12 @@ func (b *Bridge) Stop() {
 }
 
 // sendMessage sends a chat message to Keybase.
-// Input arguments are the Slack channel, user name and text content.
+// Input argument is an object of type message with channel, time, name and text information.
 func (b *Bridge) sendMessage(msg message) {
-	cmd := "keybase"
-	args := []string{
-		"chat",
-		"send",
-		fmt.Sprintf("%s", b.chat.wspace),
-		fmt.Sprintf("[%s] [%s] %s", msg.time, msg.name, msg.text),
-		fmt.Sprintf("--channel=%s", msg.channel),
-	}
-	if err := exec.Command(cmd, args...).Run(); err == nil {
-		b.trace.Printf("#%s [%s] [%s] %s\n", msg.channel, msg.time, msg.name, msg.text)
+	if result, err := b.api.kb.SendChannelMessage(b.chat.wspace, msg); err == nil {
+		b.trace.Printf("INFO: %s %+v\n", result, msg)
 	} else {
-		b.trace.Printf("ERROR: %s\n", err)
+		b.trace.Printf("ERROR: %s %s\n", result, err)
 	}
 }
 
