@@ -18,6 +18,8 @@ type Keybase struct {
 
 type api struct {
 	Result struct {
+		Message  string `json:"message"`
+		ID       int    `json:"id"`
 		Messages []struct {
 			Msg struct {
 				ID             int    `json:"id"`
@@ -61,8 +63,6 @@ type api struct {
 			Last           bool   `json:"last"`
 			ForceFirstPage bool   `json:"forceFirstPage"`
 		} `json:"pagination"`
-		Message string `json:"message"`
-		ID      int    `json:"id"`
 	} `json:"result"`
 }
 

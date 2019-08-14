@@ -68,12 +68,12 @@ func (b *Bridge) Start() {
 		for msg := range b.api.skrtm.IncomingEvents {
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
-				b.trace.Print("INFO: Connection established")
+				b.trace.Print("INFO: Slack connection established")
 				b.chat.wspace = ev.Info.Team.Domain
 				b.getChannels()
 				b.getMessages()
 			case *slack.HelloEvent:
-				b.trace.Print("INFO: Chat history synchronized")
+				b.trace.Print("INFO: Slack history synchronized with Keybase")
 			case *slack.MessageEvent:
 				uInfo, _ := b.api.skbot.GetUserInfo(ev.User)
 				cInfo, _ := b.api.skbot.GetChannelInfo(ev.Channel)
@@ -82,7 +82,7 @@ func (b *Bridge) Start() {
 			case *slack.RTMError:
 				b.trace.Printf("ERROR: %s\n", ev.Error())
 			case *slack.InvalidAuthEvent:
-				b.trace.Print("ERROR: Invalid credentials")
+				b.trace.Print("ERROR: Slack credentials invalid")
 				break
 			}
 		}
