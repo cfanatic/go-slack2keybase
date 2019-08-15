@@ -44,7 +44,7 @@ type message struct {
 // New initializes the Slack connection and returns an object of type Bridge.
 // It takes the user and bot OAuth access tokens from Slack as inputs.
 // The debug status flag enables debug information on standard output.
-func New(user_token, bot_token string, debug bool) Bridge {
+func New(user_token, bot_token string, debug bool) *Bridge {
 	b := Bridge{}
 	b.trace = log.New(os.Stdout, "", log.Lshortfile|log.LstdFlags)
 	b.api.skuser = slack.New(user_token, slack.OptionDebug(false))
@@ -57,7 +57,7 @@ func New(user_token, bot_token string, debug bool) Bridge {
 	if !debug {
 		b.trace.SetOutput(ioutil.Discard)
 	}
-	return b
+	return &b
 }
 
 // Start listens for incoming and outgoing events in an endless loop.
