@@ -105,8 +105,10 @@ func (kb *Keybase) GetChannelHistory(team, channel string, param history) (histo
 				kb.history[channel] = append(kb.history[channel], msg)
 			}
 			idx = idx + 1
-		} else {
+		} else if kb.response.Result.Messages[0].Msg.ID > 1 {
 			id = kb.response.Result.Pagination.Next
+		} else {
+			break
 		}
 	}
 	return kb.history, nil
