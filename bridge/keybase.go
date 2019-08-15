@@ -66,6 +66,11 @@ type api struct {
 	} `json:"result"`
 }
 
+type command struct {
+	name string
+	arg  []string
+}
+
 type history = slack.HistoryParameters
 
 func NewKeybase() *Keybase {
@@ -77,7 +82,7 @@ func NewKeybase() *Keybase {
 func (kb *Keybase) GetChannelHistory(team, channel string, param history) (history map[string][]message, err error) {
 	idx, id := 0, ""
 	for idx < param.Count {
-		if err := kb.getMessageJSON(team, channel, id); err != nil {
+		if err := kb.getMessage(team, channel, id); err != nil {
 			empty := make(map[string][]message)
 			return empty, err
 		}
@@ -112,14 +117,13 @@ func (kb *Keybase) SendChannelMessage(team string, msg message) (result string, 
 	defer func() {
 		result = kb.response.Result.Message
 	}()
-	if err := kb.sendMessageJSON(team, msg.channel, body); err != nil {
+	if err := kb.sendMessage(team, msg.channel, body); err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func (kb *Keybase) sendMessageJSON(team, channel, body string) (err error) {
-	response := []byte{}
+func (kb *Keybase) sendMessage(team, channel, body string) (err error) {
 	opt := fmt.Sprintf(`{
 			"method":"send",
 			"params":{
@@ -136,24 +140,17 @@ func (kb *Keybase) sendMessageJSON(team, channel, body string) (err error) {
 				}
 			}
 		}`, team, channel, body)
-	cmd := "keybase"
-	args := []string{
+	name := "keybase"
+	arg := []string{
 		"chat",
 		"api",
 		"-m",
 		opt,
 	}
-	if response, err = exec.Command(cmd, args...).Output(); err != nil {
-		return err
-	}
-	if err = json.Unmarshal(response, &kb.response); err != nil {
-		return err
-	}
-	return nil
+	return kb.executeJSON(command{name, arg})
 }
 
-func (kb *Keybase) getMessageJSON(team, channel, id string) (err error) {
-	response := []byte{}
+func (kb *Keybase) getMessage(team, channel, id string) (err error) {
 	opt := fmt.Sprintf(`{
 			"method":"read",
 			"params":{
@@ -171,17 +168,22 @@ func (kb *Keybase) getMessageJSON(team, channel, id string) (err error) {
 				}
 			}
 		}`, team, channel, id)
-	cmd := "keybase"
-	args := []string{
+	name := "keybase"
+	arg := []string{
 		"chat",
 		"api",
 		"-m",
 		opt,
 	}
-	if response, err = exec.Command(cmd, args...).Output(); err != nil {
+	return kb.executeJSON(command{name, arg})
+}
+
+func (kb *Keybase) executeJSON(cmd command) (err error) {
+	response := []byte{}
+	if response, err = exec.Command(cmd.name, cmd.arg...).Output(); err != nil {
 		return err
 	}
-	if err := json.Unmarshal(response, &kb.response); err != nil {
+	if err = json.Unmarshal(response, &kb.response); err != nil {
 		return err
 	}
 	return nil
