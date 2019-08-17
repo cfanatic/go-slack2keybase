@@ -7,9 +7,7 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
-	utime "time"
 
 	"github.com/nlopes/slack"
 )
@@ -35,7 +33,7 @@ type chat struct {
 }
 
 type message struct {
-	time    utime.Time
+	time    Timestamp
 	channel string
 	name    string
 	text    string
@@ -77,8 +75,11 @@ func (b *Bridge) Start() {
 			case *slack.MessageEvent:
 				uInfo, _ := b.api.skbot.GetUserInfo(ev.User)
 				cInfo, _ := b.api.skbot.GetChannelInfo(ev.Channel)
-				msg := message{b.timestamp(ev.Timestamp), cInfo.Name, strings.Title(uInfo.Name), ev.Text}
-				b.sendMessage(msg)
+				time := NewTimestamp(ev.Timestamp)
+				channel := cInfo.Name
+				name := strings.Title(uInfo.Name)
+				text := ev.Text
+				b.sendMessage(message{time, channel, name, text})
 			case *slack.RTMError:
 				b.trace.Printf("ERROR: %s\n", ev.Error())
 			case *slack.InvalidAuthEvent:
@@ -138,8 +139,10 @@ func (b *Bridge) getMessages() {
 				user, _ := b.api.skbot.GetUserInfo(msg.User)
 				b.chat.users[msg.User] = strings.Title(user.Name)
 			}
-			meta := message{b.timestamp(msg.Msg.Timestamp), channel, b.chat.users[msg.User], msg.Text}
-			b.chat.hist[channel] = append(b.chat.hist[channel], meta)
+			time := NewTimestamp(msg.Msg.Timestamp)
+			name := b.chat.users[msg.User]
+			text := msg.Text
+			b.chat.hist[channel] = append(b.chat.hist[channel], message{time, channel, name, text})
 		}
 		return len(b.chat.hist[channel])
 	}
@@ -166,7 +169,7 @@ func (b *Bridge) getMessages() {
 		if eq := reflect.DeepEqual(skmsg, kbmsg); eq == false {
 			if (message{} != kbmsg) {
 				param = slack.NewHistoryParameters()
-				param.Oldest = strconv.FormatInt(kbmsg.time.Unix(), 10)
+				param.Oldest = kbmsg.time.Unix()
 			} else {
 				param = slack.NewHistoryParameters()
 				param.Count = 10
@@ -191,9 +194,4 @@ func (b *Bridge) getChannels() {
 	} else {
 		b.trace.Printf("ERROR: %s\n", err)
 	}
-}
-
-func (b *Bridge) timestamp(time string) utime.Time {
-	temp, _ := strconv.ParseInt(strings.Split(time, ".")[0], 10, 64)
-	return utime.Unix(temp, 0)
 }

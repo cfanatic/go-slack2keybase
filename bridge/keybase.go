@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	utime "time"
 
 	"github.com/nlopes/slack"
 )
@@ -96,13 +95,12 @@ func (kb *Keybase) GetChannelHistory(team, channel string, param history) (histo
 					element = strings.Trim(element, "]")
 					meta = append(meta, element)
 				}
-				time, _ := utime.Parse("2006-01-02 15:04:05.999999999 -0700 MST", meta[0])
+				time := NewTimestamp(meta[0])
 				name := meta[1]
 				text := ""
 				text = strings.Split(body, "["+meta[1]+"]")[1]
 				text = strings.TrimSpace(text)
-				msg := message{time, channel, name, text}
-				kb.history[channel] = append(kb.history[channel], msg)
+				kb.history[channel] = append(kb.history[channel], message{time, channel, name, text})
 			}
 			idx = idx + 1
 		} else if kb.response.Result.Messages[0].Msg.ID > 1 {
