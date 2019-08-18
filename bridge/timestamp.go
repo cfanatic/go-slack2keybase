@@ -30,6 +30,13 @@ func (t *Timestamp) Unix(time ...string) string {
 	if time != nil {
 		t.Set(time[0])
 	}
+	return strconv.FormatInt(t.stamp.Unix(), 10)
+}
+
+func (t *Timestamp) UnixNano(time ...string) string {
+	if time != nil {
+		t.Set(time[0])
+	}
 	temp := float64(t.stamp.UnixNano()) / float64(1e9)
 	return fmt.Sprintf("%f", temp)
 }

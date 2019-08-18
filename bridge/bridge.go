@@ -171,7 +171,7 @@ func (b *Bridge) getMessages() {
 			if (message{} != kbmsg) {
 				kbmsg.time.Add(5 * time.Millisecond)
 				param = slack.NewHistoryParameters()
-				param.Oldest = kbmsg.time.Unix()
+				param.Oldest = kbmsg.time.UnixNano()
 			} else {
 				param = slack.NewHistoryParameters()
 				param.Count = 10
