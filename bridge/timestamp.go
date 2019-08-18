@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"fmt"
 	"strconv"
 	utime "time"
 )
@@ -29,7 +30,8 @@ func (t *Timestamp) Unix(time ...string) string {
 	if time != nil {
 		t.Set(time[0])
 	}
-	return strconv.FormatInt(t.stamp.Unix(), 10)
+	temp := float64(t.stamp.UnixNano()) / float64(1e9)
+	return fmt.Sprintf("%f", temp)
 }
 
 func (t *Timestamp) Local(time ...string) string {
