@@ -8,7 +8,6 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/nlopes/slack"
 )
@@ -169,7 +168,6 @@ func (b *Bridge) getMessages() {
 		}
 		if eq := reflect.DeepEqual(skmsg, kbmsg); eq == false {
 			if (message{} != kbmsg) {
-				kbmsg.time.Add(5 * time.Millisecond)
 				param = slack.NewHistoryParameters()
 				param.Oldest = kbmsg.time.UnixNano()
 			} else {

@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	utime "time"
 )
@@ -54,7 +55,9 @@ func (t *Timestamp) Add(d Duration) {
 
 func (t *Timestamp) Set(time string) {
 	if num, err := strconv.ParseFloat(time, 64); err == nil {
-		t.stamp = utime.Unix(int64(num), 0)
+		frac := fmt.Sprintf("%.6f", math.Mod(num, 1))
+		nsec, _ := strconv.ParseFloat(frac, 64)
+		t.stamp = utime.Unix(int64(num), int64(nsec*1e9))
 	}
 	if num, err := utime.Parse(TIME_LAYOUT, time); err == nil {
 		t.stamp = num
