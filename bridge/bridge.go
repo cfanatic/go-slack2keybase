@@ -12,6 +12,10 @@ import (
 	"github.com/nlopes/slack"
 )
 
+const (
+	INITIAL_SYNC = 10
+)
+
 type Bridge struct {
 	trace *log.Logger
 	api   messenger
@@ -172,7 +176,7 @@ func (b *Bridge) getMessages() {
 				param.Oldest = kbmsg.time.UnixNano()
 			} else {
 				param = slack.NewHistoryParameters()
-				param.Count = 10
+				param.Count = INITIAL_SYNC
 			}
 			if hist, err := b.api.skuser.GetChannelHistory(b.chat.chans[channel], param); err == nil {
 				_ = sync(hist, channel)
