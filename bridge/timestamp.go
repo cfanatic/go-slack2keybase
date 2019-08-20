@@ -15,7 +15,7 @@ type Timestamp struct {
 	stamp utime.Time
 }
 
-type Duration = utime.Duration
+type duration = utime.Duration
 
 func NewTimestamp(time string) Timestamp {
 	t := Timestamp{}
@@ -49,7 +49,7 @@ func (t *Timestamp) Local(time ...string) string {
 	return t.stamp.String()
 }
 
-func (t *Timestamp) Add(d Duration) {
+func (t *Timestamp) Add(d duration) {
 	t.stamp = t.stamp.Add(d)
 }
 
