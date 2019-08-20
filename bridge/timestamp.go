@@ -58,8 +58,9 @@ func (t *Timestamp) Set(time string) {
 		frac := fmt.Sprintf("%.6f", math.Mod(num, 1))
 		nsec, _ := strconv.ParseFloat(frac, 64)
 		t.stamp = utime.Unix(int64(num), int64(nsec*1e9))
-	}
-	if num, err := utime.Parse(TIME_LAYOUT, time); err == nil {
+	} else if num, err := utime.Parse(TIME_LAYOUT, time); err == nil {
 		t.stamp = num
+	} else {
+		panic(fmt.Sprintf("ERROR: Invalid timestamp %s\n", time))
 	}
 }
