@@ -1,3 +1,4 @@
+// Package bridge forwards chat messages from Slack to Keybase.
 package bridge
 
 import (
@@ -72,12 +73,16 @@ type command struct {
 
 type history = slack.HistoryParameters
 
+// NewKeybase initializes the Keybase chat history structure and returns an object of type Keybase.
+// Messages are saved in a map as objects of type message and are accessed by the corresponding channel name.
 func NewKeybase() *Keybase {
 	kb := Keybase{}
 	kb.history = make(map[string][]message)
 	return &kb
 }
 
+// GetChannelHistory retrieves the chat history from Keybase and returns the content data and error response.
+// Input arguments are the team name, the channel name and the history settings.
 func (kb *Keybase) GetChannelHistory(team, channel string, param history) (history map[string][]message, err error) {
 	idx, id := 0, ""
 	for idx < param.Count {
@@ -112,6 +117,8 @@ func (kb *Keybase) GetChannelHistory(team, channel string, param history) (histo
 	return kb.history, nil
 }
 
+// SendChannelMessage sends a chat message to Keybase and returns the result data and error response.
+// Input arguments are the team name and the content data of type message.
 func (kb *Keybase) SendChannelMessage(team string, msg message) (result string, err error) {
 	body, result := fmt.Sprintf("[%s] [%s] %s", msg.time, msg.name, msg.text), ""
 	defer func() {
@@ -123,6 +130,8 @@ func (kb *Keybase) SendChannelMessage(team string, msg message) (result string, 
 	return result, nil
 }
 
+// sendMessage initializes the JSON string to send a chat message to Keybase and returns the error response.
+// Input arguments are the team name, the channel name and the message body.
 func (kb *Keybase) sendMessage(team, channel, body string) (err error) {
 	opt := fmt.Sprintf(`{
 			"method":"send",
@@ -150,6 +159,8 @@ func (kb *Keybase) sendMessage(team, channel, body string) (err error) {
 	return kb.executeJSON(command{name, arg})
 }
 
+// getMessage initializes the JSON string to retrieve a chat message from Keybase and returns the error response.
+// Input arguments are the team name, the channel name and the message ID.
 func (kb *Keybase) getMessage(team, channel, id string) (err error) {
 	opt := fmt.Sprintf(`{
 			"method":"read",
@@ -178,6 +189,8 @@ func (kb *Keybase) getMessage(team, channel, id string) (err error) {
 	return kb.executeJSON(command{name, arg})
 }
 
+// executeJSON calls the Keybase API to send or retrieve a chat message and returns the error response.
+// Input argument is an object of type command which represents the program name and arguments to execute.
 func (kb *Keybase) executeJSON(cmd command) (err error) {
 	response := []byte{}
 	if response, err = exec.Command(cmd.name, cmd.arg...).Output(); err != nil {

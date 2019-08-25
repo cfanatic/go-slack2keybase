@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	// Number of messages to retrieve during the very first chat history synchronization
 	INITIAL_SYNC = 10
 )
 
