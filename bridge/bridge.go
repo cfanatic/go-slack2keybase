@@ -107,7 +107,7 @@ func (b *Bridge) Stop() {
 // Input argument is an object of type message with channel, time, name and text information.
 func (b *Bridge) sendMessage(msg message) {
 	if result, err := b.api.kb.SendChannelMessage(b.chat.wspace, msg); err == nil {
-		b.trace.Printf("INFO: %s %+v\n", result, msg)
+		b.trace.Printf("INFO: #%s [%s] [%s] %s\n", msg.channel, msg.time.Local(), msg.name, msg.text)
 	} else {
 		b.trace.Printf("ERROR: %s %s\n", result, err)
 	}
