@@ -2,6 +2,10 @@
 
 Use this tool to forward chat messages from Slack to Keybase. For those who hate Slack, but love Keybase.
 
+Deploy it on your desktop or server:
+
+Whenever started, Keybase will be automatically synchronized with Slack.
+
 ## Requirements
 
 Developed and tested on the following setup:
@@ -109,10 +113,16 @@ Upon successfull installation, you will see output similar to the following log:
 ```n/a
 server@cfanatic:~/go/bin$ ./keybase service
 ▶ INFO | net.Listen on unix:/run/user/1000/keybase/keybased.sock
-2019/07/28 18:41:24 bridge.go:59: INFO: Connection established
-2019/07/28 18:41:24 bridge.go:117: ERROR: History not available for channel #random
-2019/07/28 18:41:55 bridge.go:96: #random [Arnd] test
-2019/07/28 18:42:34 bridge.go:82: INFO: Closing connection
+2019/08/27 10:24:57 bridge.go:74: INFO: Slack connection established
+2019/08/27 10:24:57 bridge.go:157: INFO: Synchronizing channel "links"
+2019/08/27 10:24:58 bridge.go:157: INFO: Synchronizing channel "news"
+2019/08/27 10:24:58 bridge.go:157: INFO: Synchronizing channel "education"
+2019/08/27 10:24:59 bridge.go:157: INFO: Synchronizing channel "other"
+2019/08/27 10:24:59 bridge.go:157: INFO: Synchronizing channel "conferences"
+2019/08/27 10:24:59 bridge.go:157: INFO: Synchronizing channel "research"
+2019/08/27 10:25:00 bridge.go:157: INFO: Synchronizing channel "general"
+2019/08/27 10:25:00 bridge.go:157: INFO: Synchronizing channel "random"
+2019/08/27 10:25:02 bridge.go:110: MESSAGE: #random [2019-08-27 10:24:52.0002 +0200 CEST] [Arnd] Test 1-2-3
 server@cfanatic:~/go/bin$
 ```
 
