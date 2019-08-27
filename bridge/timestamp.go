@@ -34,7 +34,7 @@ func (t Timestamp) String() string {
 }
 
 // Unix returns the time in Unix time format without nanosecond precision, e.g. "1563305596".
-// Optional input argument is a time in another time format which will be used to initialize the internal Time attribute first.
+// Optional input argument is a time in another time format to initialize the internal Time attribute first.
 func (t *Timestamp) Unix(time ...string) string {
 	if time != nil {
 		t.Set(time[0])
@@ -43,7 +43,7 @@ func (t *Timestamp) Unix(time ...string) string {
 }
 
 // UnixNano returns the time in Unix time format with nanosecond precision, e.g. "1563305596.004500".
-// Optional input argument is a time in another time format which will be used to initialize the internal Time attribute first.
+// Optional input argument is a time in another time format to initialize the internal Time attribute first.
 func (t *Timestamp) UnixNano(time ...string) string {
 	if time != nil {
 		t.Set(time[0])
@@ -53,7 +53,7 @@ func (t *Timestamp) UnixNano(time ...string) string {
 }
 
 // Local returns the time in Local time format, e.g. "2019-07-16 21:33:16.0045 +0200 CEST".
-// Optional input argument is a time in another time format which will be used to initialize the internal Time attribute first.
+// Optional input argument is a time in another time format to initialize the internal Time attribute first.
 func (t *Timestamp) Local(time ...string) string {
 	if time != nil {
 		t.Set(time[0])
