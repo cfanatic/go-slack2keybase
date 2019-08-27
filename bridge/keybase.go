@@ -56,6 +56,21 @@ type api struct {
 				ChannelMention string `json:"channel_mention"`
 			} `json:"msg"`
 		} `json:"messages"`
+		Conversations []struct {
+			ID      string `json:"id"`
+			Channel struct {
+				Name        string `json:"name"`
+				Public      bool   `json:"public"`
+				MembersType string `json:"members_type"`
+				TopicType   string `json:"topic_type"`
+				TopicName   string `json:"topic_name"`
+			} `json:"channel,omitempty"`
+			Unread       bool   `json:"unread"`
+			ActiveAt     int    `json:"active_at"`
+			ActiveAtMs   int64  `json:"active_at_ms"`
+			MemberStatus string `json:"member_status"`
+		} `json:"conversations"`
+		Offline    bool `json:"offline"`
 		Pagination struct {
 			Next           string `json:"next"`
 			Previous       string `json:"previous"`
@@ -79,6 +94,21 @@ func NewKeybase() *Keybase {
 	kb := Keybase{}
 	kb.history = make(map[string][]message)
 	return &kb
+}
+
+// GetChannels creates a list of available channels in Keybase and returns the list and error response.
+// Input argument is the team name.
+func (kb *Keybase) GetChannels(team string) (list []string, err error) {
+	if err := kb.list(); err != nil {
+		empty := []string{}
+		return empty, err
+	}
+	for _, element := range kb.response.Result.Conversations {
+		if element.Channel.Name == team {
+			list = append(list, element.Channel.TopicName)
+		}
+	}
+	return list, nil
 }
 
 // GetChannelHistory retrieves the chat history from Keybase and returns the content data and error response.
@@ -179,6 +209,20 @@ func (kb *Keybase) getMessage(team, channel, id string) (err error) {
 				}
 			}
 		}`, team, channel, id)
+	name := "keybase"
+	arg := []string{
+		"chat",
+		"api",
+		"-m",
+		opt,
+	}
+	return kb.executeJSON(command{name, arg})
+}
+
+// list initializes the JSON string to retrieve the inbox data and returns the error response.
+// TODO: It would be better to pass a team name along with the API call to save bandwidth.
+func (kb *Keybase) list() (err error) {
+	opt := "{\"method\":\"list\"}"
 	name := "keybase"
 	arg := []string{
 		"chat",

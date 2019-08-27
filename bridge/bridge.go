@@ -153,7 +153,11 @@ func (b *Bridge) getMessages() {
 	}
 	param := slack.HistoryParameters{}
 	skmsg, kbmsg := message{}, message{}
+	list, _ := b.api.kb.GetChannels(b.chat.wspace)
 	for channel, _ := range b.chat.chans {
+		if res := b.isAvailable(channel, list); res == false {
+			continue
+		}
 		b.trace.Printf("INFO: Synchronizing channel \"%s\"\n", channel)
 		param = slack.NewHistoryParameters()
 		param.Count = 1
@@ -199,4 +203,15 @@ func (b *Bridge) getChannels() {
 	} else {
 		b.trace.Printf("ERROR: %s\n", err)
 	}
+}
+
+// isAvailable checks if a keyword is available in a given slice of strings.
+// The method is used to determine whether a Slack channel is available in the Keybase team.
+func (b *Bridge) isAvailable(channel string, list []string) bool {
+	for _, item := range list {
+		if channel == item {
+			return true
+		}
+	}
+	return false
 }
