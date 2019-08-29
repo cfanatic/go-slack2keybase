@@ -4,7 +4,7 @@ Use this tool to forward chat messages from Slack to Keybase. For those who hate
 
 Deploy it on your desktop or server:
 
-Whenever started, Keybase will be automatically synchronized with Slack.
+Whenever started, your Keybase team will be automatically synchronized with your Slack workspace.
 
 ## Requirements
 
